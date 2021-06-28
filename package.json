@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "hypertube RESTful api for wethinkcode_ project",
   "main": "server.js",
+  "engines": {
+    "node": "16.4.0"
+  },
   "scripts": {
     "start": "node server/server.js",
+    "build": "cd client && npm install && npm run build",
     "server": "nodemon server/server.js",
     "client": "npm start --prefix client",
     "dev": "concurrently --kill-others \"npm run server\" \"npm run client\""
