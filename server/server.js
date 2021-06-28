@@ -18,6 +18,7 @@ const moviesRouter = require("./routes/moviesRouter");
 const userRouter = require("./routes/usersRouter");
 const torrentRouter = require("./routes/torrentsRouter");
 const oauthRouter = require("./routes/oauthRouter");
+const path = require("path")
 
 global.__basedir = __dirname;
 
@@ -123,6 +124,9 @@ app.post("/register/avatar", (req, res) => {
   });
 });
 
+app.get('*', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../client/build', 'index.html'));
+});
 /* ****************************************************END OF ROUTES **************************************************** */
 
 /* Start Services */
