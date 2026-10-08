@@ -28,6 +28,9 @@ const UserSchema = new Schema({
       ytsId: { type: String, required: true },
       percent: { type: String, required: true },
       timecode: { type: String, required: true },
+      season: Number,
+      episode: Number,
+      hash: String,
       time: { type: Number, required: true },
     },
   ],
@@ -61,6 +64,16 @@ UserSchema.methods.validPassword = function(password) {
 UserSchema.methods.isMailConfirmed = function() {
   return (this.confirmKey === 'confirmed');
 };
+
+// never send hashes or confirmation/reset keys to the client
+UserSchema.set('toJSON', {
+  transform: (doc, ret) => {
+    delete ret.password;
+    delete ret.confirmKey;
+    delete ret.forgotKey;
+    return ret;
+  }
+});
 
 const User = mongoose.model('User', UserSchema);
 

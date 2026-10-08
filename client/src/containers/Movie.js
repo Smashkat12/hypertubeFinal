@@ -47,28 +47,39 @@ const Movie = (props) => {
       document.removeEventListener("scroll", handleScroll, false);
       document.removeEventListener("keydown", onEscape, false);
 
-      const videoPlayer = document.getElementsByClassName("video-player")[0];
-      if (videoPlayer && videoPlayer.currentTime > 5) {
-        const watchPercent = (
-          (videoPlayer.currentTime / videoPlayer.duration) *
-          100
-        ).toFixed(0);
-        if (watchPercent >= 95) {
-          axios.post(`http://localhost:5000/movies/${id}/recents`, null);
-          axios.delete(`http://localhost:5000/movies/${id}/inprogress`);
-        } else {
-          axios.get(`http://localhost:5000/movies/${id}`).then((res) => {
-            axios.post(`http://localhost:5000/movies/${id}/inprogress`, {
-              ytsId: res.data.movie[0]._ytsId,
-              percent: watchPercent,
-              timecode: videoPlayer.currentTime.toString(),
-            });
-          });
-        }
-      }
+      saveProgress();
     };
     // eslint-disable-next-line
   }, []);
+
+  const lastSaved = useRef(0);
+  const saveProgress = () => {
+    const videoPlayer = document.getElementsByClassName("video-player")[0];
+    if (videoPlayer && videoPlayer.currentTime > 5 && videoPlayer.duration) {
+      lastSaved.current = Date.now();
+      const watchPercent = (
+        (videoPlayer.currentTime / videoPlayer.duration) *
+        100
+      ).toFixed(0);
+      if (watchPercent >= 95) {
+        axios.post(`${window.API_URL}/movies/${id}/recents`, null);
+        axios.delete(`${window.API_URL}/movies/${id}/inprogress`);
+      } else {
+        axios.get(`${window.API_URL}/movies/${id}`).then((res) => {
+          axios.post(`${window.API_URL}/movies/${id}/inprogress`, {
+            ytsId: res.data.movie[0]._ytsId,
+            percent: watchPercent,
+            timecode: videoPlayer.currentTime.toString(),
+          });
+        });
+      }
+    }
+  };
+
+  // unmount alone misses reloads/closed tabs, so also save on pause and every 30s
+  const onTimeUpdate = () => {
+    if (Date.now() - lastSaved.current > 30000) saveProgress();
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -77,7 +88,7 @@ const Movie = (props) => {
   }, [id]);
 
   const fetchMovie = async () => {
-    const resp = await axios.get(`http://localhost:5000/movies/${id}`);
+    const resp = await axios.get(`${window.API_URL}/movies/${id}`);
     if (!isCanceled.current && resp) {
       if (resp.data.movie && resp.data.movie[0]) {
         let torrentMaxSeeds = resp.data.movie[0].ytsData.torrents[0];
@@ -95,7 +106,7 @@ const Movie = (props) => {
         resp.data.movie[0].ytsData.torrents[0] = torrentMaxSeeds;
         updateMovie(resp.data.movie[0]);
 
-        axios.put(`http://localhost:5000/movies`, { id });
+        axios.put(`${window.API_URL}/movies`, { id });
 
         updateLoaded(true);
 
@@ -103,7 +114,7 @@ const Movie = (props) => {
         document.addEventListener("keydown", onEscape, false);
 
         const res = await axios.get(
-          `http://localhost:5000/movies/${id}/inprogress`
+          `${window.API_URL}/movies/${id}/inprogress`
         );
         if (!isCanceled.current && res.data.success && res.data.found > 0) {
           const videoPlayer = document.getElementsByClassName(
@@ -113,7 +124,7 @@ const Movie = (props) => {
         }
 
         /* const resSubtitles = await axios.get(
-          `http://localhost:5000/torrents/subtitles/${resp.data.movie[0].ytsData.imdb_code}`
+          `${window.API_URL}/torrents/subtitles/${resp.data.movie[0].ytsData.imdb_code}`
         );
         if (
           !isCanceled.current &&
@@ -124,12 +135,12 @@ const Movie = (props) => {
         } */
       }
     }
-    const responseUser = await axios.get(`http://localhost:5000/auth/`);
+    const responseUser = await axios.get(`${window.API_URL}/auth/`);
     if (!isCanceled.current && responseUser) {
       updateUser(responseUser.data.user);
 
       const responseHeartbeat = await axios.get(
-        `http://localhost:5000/movies/${id}/heartbeat`
+        `${window.API_URL}/movies/${id}/heartbeat`
       );
       if (
         !isCanceled.current &&
@@ -139,13 +150,13 @@ const Movie = (props) => {
         updateHeartbeat(true);
 
       const responseRating = await axios.get(
-        `http://localhost:5000/movies/${id}/user/ratings`
+        `${window.API_URL}/movies/${id}/user/ratings`
       );
       if (!isCanceled.current && responseRating.data.rating)
         updateRating(responseRating.data.rating);
 
       const responseRatingCount = await axios.get(
-        `http://localhost:5000/movies/${id}/ratings`
+        `${window.API_URL}/movies/${id}/ratings`
       );
       if (!isCanceled.current && responseRatingCount.data.success) {
         updateRatingAverage(responseRatingCount.data.ratingAverage);
@@ -185,7 +196,7 @@ const Movie = (props) => {
 
     if (!isCanceled.current) {
       if (newComment.content.trim() !== "") {
-        axios.post(`http://localhost:5000/movies/${id}/comments`, newComment);
+        axios.post(`${window.API_URL}/movies/${id}/comments`, newComment);
         updateMovie({ ...movie, comments: [...movie.comments, newComment] });
       }
       updateComment("");
@@ -197,13 +208,13 @@ const Movie = (props) => {
       rating: value,
     };
     const response = await axios.post(
-      `http://localhost:5000/movies/${id}/ratings`,
+      `${window.API_URL}/movies/${id}/ratings`,
       newRating
     );
     if (!isCanceled.current && response) {
       updateRating(value);
       const responseRating = await axios.get(
-        `http://localhost:5000/movies/${id}/ratings`
+        `${window.API_URL}/movies/${id}/ratings`
       );
       if (!isCanceled.current && responseRating.data.success) {
         updateRatingAverage(responseRating.data.ratingAverage);
@@ -239,14 +250,14 @@ const Movie = (props) => {
 
   const toggleHeartbeat = async () => {
     if (!heartbeat)
-      axios.post(`http://localhost:5000/movies/${id}/heartbeat`, null);
-    else axios.delete(`http://localhost:5000/movies/${id}/heartbeat`);
+      axios.post(`${window.API_URL}/movies/${id}/heartbeat`, null);
+    else axios.delete(`${window.API_URL}/movies/${id}/heartbeat`);
 
     updateHeartbeat(!heartbeat);
   };
 
   const reportComment = (id) => {
-    axios.post(`http://localhost:5000/movies/${movie._id}/comments/report`, {
+    axios.post(`${window.API_URL}/movies/${movie._id}/comments/report`, {
       commId: id,
     });
   };
@@ -348,7 +359,7 @@ const Movie = (props) => {
                               src={
                                 person.url_small_image
                                   ? person.url_small_image
-                                  : `http://localhost:5000/public/avatars/default_avatar.png`
+                                  : `${window.API_URL}/public/avatars/default_avatar.png`
                               }
                               alt={person.name}
                             />
@@ -402,7 +413,7 @@ const Movie = (props) => {
                                   <a
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    href={`http://localhost:3000/user/${comment.author}`}
+                                    href={`/user/${comment.author}`}
                                   >
                                     @{comment.author}
                                   </a>
@@ -519,7 +530,7 @@ const Movie = (props) => {
                           src={
                             person.url_small_image
                               ? person.url_small_image
-                              : `http://localhost:5000/public/avatars/default_avatar.png`
+                              : `${window.API_URL}/public/avatars/default_avatar.png`
                           }
                           alt={person.name}
                         />
@@ -632,6 +643,8 @@ const Movie = (props) => {
               <video
                 ref={player}
                 className="video-player"
+                onPause={saveProgress}
+                onTimeUpdate={onTimeUpdate}
                 width="100%"
                 controls
                 preload="metadata"
@@ -640,7 +653,7 @@ const Movie = (props) => {
                 <source
                   src={
                     !isCanceled.current
-                      ? `http://localhost:5000/torrents/stream/${encodeURIComponent(
+                      ? `${window.API_URL}/torrents/stream/${encodeURIComponent(
                           movie.ytsData.torrents[0].magnet
                         )}`
                       : ""

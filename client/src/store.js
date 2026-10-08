@@ -1,5 +1,6 @@
 import React, { createContext, Component } from "react"
 import axios from "axios";
+import { avatarSrc } from "./config";
 
 
 export const UserContext = createContext(true)
@@ -10,7 +11,7 @@ class Provider extends Component {
         language: "en",
         search: "",
         avatar: "",
-        updateAvatar: (avatar) => this.setState({ avatar }),
+        updateAvatar: (avatar) => this.setState({ avatar: avatarSrc(avatar) }),
         updateSearch: (search) => this.setState({ search }),
         updateLanguage: (language) => this.setState({ language })
     }
@@ -26,7 +27,7 @@ class Provider extends Component {
     }
 
     fetchLanguage = async () => {
-        const res = await axios.get(`http://localhost:5000/users/language`);
+        const res = await axios.get(`${window.API_URL}/users/language`);
         if (res && res.data.language && this._isMounted)
             this.setState({ language: res.data.language })
     }

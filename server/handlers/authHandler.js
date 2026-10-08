@@ -5,9 +5,16 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/user");
 const passport = require("passport");
 
+// req.user comes from the session as a plain object, so strip secrets by hand
+const publicUser = (user) => {
+  if (!user) return user;
+  const { password, confirmKey, forgotKey, ...rest } = user.toJSON ? user.toJSON() : user;
+  return rest;
+};
+
 module.exports = {
   isAuthenticated: (req, res) => {
-    if (req.isAuthenticated()) res.json({ auth: true, user: req.user });
+    if (req.isAuthenticated()) res.json({ auth: true, user: publicUser(req.user) });
     else res.json({ auth: false });
   },
 
@@ -28,7 +35,7 @@ module.exports = {
               res.json({
                 success: true,
                 status: "Authentication success",
-                user: req.user,
+                user: publicUser(req.user),
               });
             } else {
               res.json({

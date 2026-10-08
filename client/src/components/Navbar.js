@@ -32,25 +32,29 @@ const Header = props => {
   }, [])
 
   useEffect(() => {
+    // responses for older keystrokes can arrive late; ignore them
+    let stale = false;
     const fetchData = async () => {
-      const responseAuth = await axios.get(`http://localhost:5000/auth/`);
+      const responseAuth = await axios.get(`${window.API_URL}/auth/`);
       if (!isCanceled.current && responseAuth.data.auth) {
         updateIsAuth(true);
         window.addEventListener("mousedown", closeMenu);
-        const responseUser = await  axios.get(`http://localhost:5000/users/id`);
+        const responseUser = await  axios.get(`${window.API_URL}/users/id`);
         if (!isCanceled.current && responseUser.data.success) {
           updateAvatar(responseUser.data.user[0].avatar);
           if (searchMovie.trim() !== '') {
-            const responseMovies = await axios.get(`http://localhost:5000/torrents/yts/search?search=${escapeSpecial(searchMovie)}&minyear=1900&maxyear=${new Date().getFullYear()}&minrating=0&maxrating=5`);
-            if (!isCanceled.current && responseMovies.data.success)
+            const responseMovies = await axios.get(`${window.API_URL}/torrents/yts/search?search=${escapeSpecial(searchMovie)}&minyear=1900&maxyear=${new Date().getFullYear()}&minrating=0&maxrating=5`);
+            if (!isCanceled.current && !stale && responseMovies.data.success)
               updateMovies(responseMovies.data.results);
           }
         }
       }
     };
 
-    fetchData();
+    const timer = setTimeout(fetchData, 300);
     return () => {
+      stale = true;
+      clearTimeout(timer);
       window.removeEventListener("mousedown", closeMenu);
     };
   }, [updateAvatar, searchMovie]);
@@ -103,12 +107,12 @@ const Header = props => {
   const checkDatabase = async ytsID => {
     if (inProgress) return;
     const responseMovies = await axios.get(
-      `http://localhost:5000/movies/yts/${ytsID}`
+      `${window.API_URL}/movies/yts/${ytsID}`
     );
     if (!isCanceled.current && !responseMovies.data.success) {
       inProgress = true;
       const responseYts = await axios.get(
-        `http://localhost:5000/torrents/yts/${ytsID}`
+        `${window.API_URL}/torrents/yts/${ytsID}`
       );
       if (!isCanceled.current && responseYts) {
         const movie = responseYts.data.result.data.movie;
@@ -125,13 +129,13 @@ const Header = props => {
           author: "Piraters of the web"
         };
         const responseNewMovie = await axios.post(
-          `http://localhost:5000/movies`,
+          `${window.API_URL}/movies`,
           newMovie
         );
         if (!isCanceled.current && responseNewMovie.data.success)
-          window.location.href = `http://localhost:3000/watch/${responseNewMovie.data.movie._id}`;
+          window.location.href = `/watch/${responseNewMovie.data.movie._id}`;
       } else inProgress = false;
-    } else if (!isCanceled.current) window.location.href = `http://localhost:3000/watch/${responseMovies.data.movie._id}`;
+    } else if (!isCanceled.current) window.location.href = `/watch/${responseMovies.data.movie._id}`;
   };
 
   return (
@@ -186,9 +190,9 @@ const Header = props => {
                       >
                         <img
                           src={
-                            movie.large_cover_image.includes("https://yts.lt/")
+                            movie.large_cover_image.startsWith("http")
                               ? movie.large_cover_image
-                              : `https://yst.am${movie.large_cover_image}`
+                              : `https://yts.gg${movie.large_cover_image}`
                           }
                           width="20"
                           height="20"

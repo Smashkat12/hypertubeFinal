@@ -35,13 +35,13 @@ const Confirm = props => {
   useEffect(() => {
     const fetchData = async () => {
 		//Api call to backend --> confirms provider key
-      const response = await axios.post(`http://localhost:5000/auth/confirm`, { key });
+      const response = await axios.post(`${window.API_URL}/auth/confirm`, { key });
       if (!isCanceled.current && response.data.success) {
         updateStatus("ok");
         updateIsLoaded(true);
         setTimeout(() => {
 			//move to login page
-          window.location.href = "http://localhost:3000/login";
+          window.location.href = "/login";
         }, 1000);
       } else if (!isCanceled.current) {
         updateStatus("not found");
@@ -60,7 +60,7 @@ const Confirm = props => {
           <div>{translations[language].confirm.success}</div>
         </div>
       ) : (
-        (window.location.href = "http://localhost:3000/")
+        (window.location.href = "/")
       )}
     </div>
   ) : (

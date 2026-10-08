@@ -1,0 +1,18 @@
+node_modules/
+client/build/
+
+# local secrets
+.test-credentials
+.env*
+
+# downloads (normally on the USB drive) and user uploads
+server/torrents/*
+!server/torrents/.keep
+server/public/avatars/*
+!server/public/avatars/default_avatar.png
+server/public/avatars/tmp/*
+!server/public/avatars/tmp/.keep
+
+# caches the server rebuilds on its own
+server/data/tvmaze-index.json
+server/data/imdb-map.json

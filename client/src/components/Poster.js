@@ -22,20 +22,20 @@ const Poster = props => {
 
   useEffect(() => {
     const fetchMovieData = async () => {
-      const response = await axios.get(`http://localhost:5000/movies/${movie._id}/ratings`);
+      const response = await axios.get(`${window.API_URL}/movies/${movie._id}/ratings`);
       if (!isCanceled.current && response.data.success) {
         updateRatingAverage(response.data.ratingAverage);
         updateRatingCount(response.data.ratingCount);
       }
       if (!username) {
         const resp = await axios.get(
-          `http://localhost:5000/movies/${movie._id}/progress`
+          `${window.API_URL}/movies/${movie._id}/progress`
         );
         if (!isCanceled.current && resp.data.success)
           setProgress(resp.data.watchPercent)
       } else {
         const resp = await axios.get(
-          `http://localhost:5000/movies/${movie._id}/${username}/progress`
+          `${window.API_URL}/movies/${movie._id}/${username}/progress`
         );
         if (!isCanceled.current && resp.data.success)
           setProgress(resp.data.watchPercent)

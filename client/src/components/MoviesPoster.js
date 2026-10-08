@@ -9,11 +9,11 @@ const Poster = ({ movie}) => (
     <img
       className="movie-poster"
       src={
-        movie.large_cover_image.includes("https://yts.mx/")
+        movie.large_cover_image.startsWith("http")
           ? movie.large_cover_image
-          : `https://yst.am${movie.large_cover_image}`
+          : `https://yts.gg${movie.large_cover_image}`
       }
-      onError={ e => { e.target.onerror = null; e.target.src="http://underscoremusic.co.uk/site/wp-content/uploads/2014/05/no-poster.jpg" }}
+      onError={ e => { e.target.onerror = null; e.target.src="/no-poster.svg" }}
       alt={movie.title}
     />
     <ProgressBar progress={movie.watchPercent ? movie.watchPercent : 0} />

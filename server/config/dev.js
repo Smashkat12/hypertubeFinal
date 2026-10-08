@@ -1,6 +1,6 @@
 module.exports = {
   MONGODB: {
-    mongoURI:
+    mongoURI: process.env.MONGO_URI ||
       "mongodb+srv://Hypertube:Hypertube@cluster0.1mxy5.mongodb.net/Hypertube?retryWrites=true&w=majority",
   },
   FACEBOOK: {
@@ -22,6 +22,6 @@ module.exports = {
   },
   sendgrid: {
     apikey:
-      "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",
+      process.env.SENDGRID_API_KEY,
   },
 };

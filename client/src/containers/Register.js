@@ -25,7 +25,7 @@ const Register = () => {
     username: "",
     password: "",
     confirmPassword: "",
-    avatar: `http://localhost:5000/public/avatars/default_avatar.png`,
+    avatar: `${window.API_URL}/public/avatars/default_avatar.png`,
     email: "",
     phone: "",
     city: "",
@@ -65,7 +65,7 @@ const Register = () => {
             if (checkpassword(newUser.password, newUser.confirmPassword)) {
               if (checkEmail(newUser.email)) {
                 const response = await axios.post(
-                  `http://localhost:5000/users/`,
+                  `${window.API_URL}/users/`,
                   newUser
                 );
                 if (!isCanceled.current && response && response.data.success)

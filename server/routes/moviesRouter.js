@@ -23,11 +23,11 @@ exports.router = (() => {
 
   moviesRouter.get("/yts/:id", moviesHandler.getYtsById);
 
-  moviesRouter.get("/:id/hearbeat", moviesHandler.getHeartbeatById);
+  moviesRouter.get("/:id/heartbeat", moviesHandler.getHeartbeatById);
 
-  moviesRouter.post("/:id/hearbeat", moviesHandler.postHeartbeatById);
+  moviesRouter.post("/:id/heartbeat", moviesHandler.postHeartbeatById);
 
-  moviesRouter.delete("/:id/hearbeat", moviesHandler.delHeartbeatById);
+  moviesRouter.delete("/:id/heartbeat", moviesHandler.delHeartbeatById);
 
   moviesRouter.get("/:id/recents", moviesHandler.getRecentsById);
 

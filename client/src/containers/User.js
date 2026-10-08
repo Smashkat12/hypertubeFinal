@@ -6,6 +6,7 @@ import Loading from "components/Loading";
 import { ReactComponent as VerifiedIcon } from "icons/verified.svg";
 import { UserConsumer } from "store";
 import axios from "axios";
+import { avatarSrc } from "../config";
 
 
 const User = props => {
@@ -27,7 +28,7 @@ const User = props => {
   }, []);
 
   const fetchData = async () => {
-    const res = await axios.get(`http://localhost:5000/users/n/${match.params.username}`);
+    const res = await axios.get(`${window.API_URL}/users/n/${match.params.username}`);
     if (!isCancelled.current && res.data.success) {
       updateUser(res.data.user[0]);
       if (res.data.user[0]) {
@@ -45,7 +46,7 @@ const User = props => {
   const getMoviesList = moviesListIds => {
     return Promise.all(
       moviesListIds.reverse().map(async movie => {
-        const res = await axios.get(`http://localhost:5000/movies/${movie.id}`);
+        const res = await axios.get(`${window.API_URL}/movies/${movie.id}`);
         if (res.data.success && res.data.movie) {
           return res.data.movie[0];
         }
@@ -90,7 +91,7 @@ const User = props => {
                 }}
               >
                 <div className="profile-avatar center">
-                  <img src={user.avatar} alt={`Avatar ${user.username}`} />
+                  <img src={avatarSrc(user.avatar)} alt={`Avatar ${user.username}`} />
                 </div>
                 <div style={{ marginTop: 20 }}>
                   <div>

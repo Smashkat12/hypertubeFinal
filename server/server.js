@@ -1,10 +1,13 @@
 const express = require("express");
 const session = require("express-session");
+const MongoStore = require("connect-mongo")(session);
 const morgan = require("morgan");
 const chalk = require("chalk");
 const fileUpload = require("express-fileupload");
 const cron = require("./services/cronjob");
 const app = express();
+// behind tailscale serve: honour X-Forwarded-Proto so secure cookies + OAuth callbacks use https
+app.set("trust proxy", "loopback");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 /* const cookieParser = require("cookie-parser"); */
@@ -18,6 +21,8 @@ const moviesRouter = require("./routes/moviesRouter");
 const userRouter = require("./routes/usersRouter");
 const torrentRouter = require("./routes/torrentsRouter");
 const oauthRouter = require("./routes/oauthRouter");
+const streamRouter = require("./routes/streamRouter");
+const catalogRouter = require("./routes/catalogRouter");
 const path = require("path")
 
 global.__basedir = __dirname;
@@ -65,13 +70,15 @@ app.use(
     },
     resave: false,
     saveUninitialized: false,
+    // persist sessions so a server restart doesn't log everyone out
+    store: new MongoStore({ mongooseConnection: mongoose.connection }),
   })
 ); //
 
 /* app.use(cookieParser()); */
 app.use(
   cors({
-    origin: [`http://localhost:3000`],
+    origin: true, // reflect caller origin so LAN devices can reach the API
     credentials: true,
   })
 ); //
@@ -104,19 +111,30 @@ app.use(passport.session()); //
 app.use(contimeout("6000s"));
 /* ****************************************************END OF MIDDLEWARE **************************************************** */
 
+// reject logged-out requests before handlers touch req.user._id (was crashing the server)
+const requireAuth = (req, res, next) => {
+  if (req.user) return next();
+  res.status(401).json({ success: false, status: "Unauthorized" });
+};
+
 //Routes
+app.use("/movies", requireAuth);
+app.use("/torrents/yts", requireAuth);
+app.use(["/users/id", "/users/avatar"], requireAuth);
 app.use("/oauth", oauthRouter.router);
 app.use("/auth", authRouter.router);
 app.use("/users", userRouter.router);
 app.use("/movies", moviesRouter.router);
 app.use("/torrents", torrentRouter.router);
+app.use("/stream", streamRouter.router);
+app.use("/catalog", requireAuth, catalogRouter.router);
 
 app.post("/register/avatar", (req, res) => {
   let avatarFile = req.files.file;
   let uniqueId = uuidv4();
   let timestamp = Date.now();
   console.log(avatarFile);
-  avatarFile.mv(`server/public/avatars/tmp/${uniqueId}_${timestamp}.jpg`, (err) => {
+  avatarFile.mv(`${__basedir}/public/avatars/tmp/${uniqueId}_${timestamp}.jpg`, (err) => {
     if (err) {
       console.log(err);
       res.json({ success: false });

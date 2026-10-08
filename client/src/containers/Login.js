@@ -47,19 +47,19 @@ const Login = () => {
   const authenticate = async strategy => {
     document.getElementById("error").style.display = "none";
     if (strategy === "github") {
-      window.location.href = `http://localhost:5000/oauth/github/`;
+      window.location.href = `${window.API_URL}/oauth/github/`;
     } else if (strategy === "42") {
-      window.location.href = `http://localhost:5000/oauth/42/`;
+      window.location.href = `${window.API_URL}/oauth/42/`;
     } else if (strategy === "google") {
-      window.location.href = `http://localhost:5000/oauth/google/`;
+      window.location.href = `${window.API_URL}/oauth/google/`;
     } else {
       const body = { username, password };
       const response = await axios.post(
-        `http://localhost:5000/auth/login/local`,
+        `${window.API_URL}/auth/login/local`,
         body
       );
       if (!isCanceled.current && response.data.success) {
-        window.location.href = `http://localhost:3000/`;
+        window.location.href = `/`;
       } else if (!isCanceled.current) {
         updateError(response.data.status);
         document.getElementById("error").style.display = "block";
@@ -71,7 +71,7 @@ const Login = () => {
     document.getElementById("error2").style.display = "none";
     const body = { email, origin: window.location.origin };
     const response = await axios.post(
-      `http://localhost:5000/auth/forgot`,
+      `${window.API_URL}/auth/forgot`,
       body
     );
     if (!isCanceled.current && !response.data.success) {

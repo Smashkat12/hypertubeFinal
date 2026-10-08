@@ -11,10 +11,10 @@ const Logout = () => {
   const context = useContext(UserConsumer);
 
   useEffect(() => {
-    axios.get(`http://localhost:5000/auth/logout`);
+    axios.get(`${window.API_URL}/auth/logout`);
     updateDisconnected(true);
     setTimeout(() => {
-      window.location.href = "http://localhost:3000/login";
+      window.location.href = "/login";
     }, 1000);
   }, []);
 

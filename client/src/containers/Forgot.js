@@ -30,7 +30,7 @@ const Forgot = (props) => {
   useEffect(() => {
     const fetchKey = async () => {
       const response = await axios.get(
-        `http://localhost:5000/auth/forgot/${key}`
+        `${window.API_URL}/auth/forgot/${key}`
       );
       if (!isCanceled.current && response.data.success) {
         updateStatus("ok");
@@ -54,7 +54,7 @@ const Forgot = (props) => {
     if (checkpassword(password, confirmPassword)) {
       const body = { passwd: password };
       const response = await axios.post(
-        `http://localhost:5000/auth/forgot/${key}`,
+        `${window.API_URL}/auth/forgot/${key}`,
         body
       );
       if (!isCanceled.current && response.data.success) {

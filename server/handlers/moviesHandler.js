@@ -303,6 +303,8 @@ module.exports = {
         ytsId: req.body.ytsId,
         percent: req.body.percent,
         timecode: req.body.timecode,
+        season: req.body.season,
+        episode: req.body.episode,
         time: Date.now(),
       };
       User.findOne(
@@ -317,6 +319,9 @@ module.exports = {
                 $set: {
                   "inProgress.$.percent": req.body.percent,
                   "inProgress.$.timecode": req.body.timecode,
+                  "inProgress.$.season": req.body.season,
+                  "inProgress.$.episode": req.body.episode,
+                  "inProgress.$.time": Date.now(),
                 },
               },
               (err) => {

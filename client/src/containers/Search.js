@@ -60,7 +60,7 @@ const Search = props => {
       updateIsLoaded(false);
       setPage(1);
       const response = await axios.get(
-        `http://localhost:5000/torrents/yts/search?search=${escapeSpecial(
+        `${window.API_URL}/torrents/yts/search?search=${escapeSpecial(
           search
         )}${filter.genre !== "" ? "&genre=" + filter.genre : ""}${
           filter.minYear !== "" ? "&minyear=" + filter.minYear : ""
@@ -82,7 +82,7 @@ const Search = props => {
       setPage(curr => curr + 1);
       setLoadMore(true);
       const resp = await axios.get(
-        `http://localhost:5000/torrents/yts/search?search=${escapeSpecial(
+        `${window.API_URL}/torrents/yts/search?search=${escapeSpecial(
           search
         )}${filter.genre !== "" ? "&genre=" + filter.genre : ""}${
           filter.minYear !== "" ? "&minyear=" + filter.minYear : ""
@@ -90,8 +90,9 @@ const Search = props => {
           filter.minRating !== "" ? "&minrating=" + filter.minRating : ""
         }${filter.maxRating !== "" ? "&maxrating=" + filter.maxRating : ""}${
           filter.sort !== "" ? "&sort=" + filter.sort : ""
-        }${filter.order !== "" ? "&order=" + filter.order : ""}
-        ${page ? "&page=" + (page + 1) : ""}`
+        }${filter.order !== "" ? "&order=" + filter.order : ""}${
+          page ? "&page=" + (page + 1) : ""
+        }`
       );
       if (!isCanceled.current && resp) {
         updateMoviesYTS(prevArray => [
@@ -110,12 +111,12 @@ const Search = props => {
   const checkDatabase = async ytsID => {
     if (inProgress) return;
     const responseMovies = await axios.get(
-      `http://localhost:5000/movies/yts/${ytsID}`
+      `${window.API_URL}/movies/yts/${ytsID}`
     );
     if (!isCanceled.current && !responseMovies.data.success) {
       inProgress = true;
       const responseYts = await axios.get(
-        `http://localhost:5000/torrents/yts/${ytsID}`
+        `${window.API_URL}/torrents/yts/${ytsID}`
       );
       if (!isCanceled.current && responseYts) {
         const movie = responseYts.data.result.data.movie;
@@ -132,7 +133,7 @@ const Search = props => {
           author: "Someone"
         };
         const responseNewMovie = await axios.post(
-          `http://localhost:5000/movies`,
+          `${window.API_URL}/movies`,
           newMovie
         );
         if (!isCanceled.current && responseNewMovie.data.success)
@@ -221,7 +222,7 @@ const Search = props => {
               {moviesYTS.map((movie, index) => {
                 if (!movie.large_cover_image)
                   movie.large_cover_image =
-                    "http://story-one.com/wp-content/uploads/2016/02/Poster_Not_Available2.jpg";
+                    "/no-poster.svg";
 
                 return (
                   <div

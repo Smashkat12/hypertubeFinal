@@ -21,7 +21,8 @@ module.exports = {
       lastname: req.body.lastname,
       username: req.body.username,
       password: bcrypt.hashSync(req.body.password, 10),
-      avatar: req.body.avatar,
+      // keep only the path for our own files so the avatar works from any host
+      avatar: (req.body.avatar || "").replace(/^https?:\/\/[^/]+(?=\/public\/avatars\/)/, ""),
       cover: "cinema",
       birthdate: req.body.birthdate,
       age: req.body.age,
@@ -75,7 +76,18 @@ module.exports = {
 
         transporter.sendMail(mailOptions, function (error, info) {
           if (error) {
-            console.log(chalk.bold.redBright("Email error: "), error);
+            console.log(chalk.bold.redBright("Email error: "), error.message);
+            if (process.env.NODE_ENV === "production") {
+              // never skip verification in prod; drop the user so signup can be retried
+              User.deleteOne({ _id: newUser._id }, () => {
+                res.json({ success: false, error: "Could not send confirmation email" });
+              });
+            } else {
+              // local dev only: mail account is dead, auto-confirm so signups still work
+              User.updateOne({ _id: newUser._id }, { confirmKey: "confirmed" }, () => {
+                res.json({ success: true, user: newUser });
+              });
+            }
           } else {
             console.log(chalk.bold.greenBright("Email sent: "), info.response);
             res.json({ success: true, user: newUser });
@@ -120,7 +132,8 @@ module.exports = {
     if (req.body.firstname) updateQuery.firstname = req.body.firstname;
     if (req.body.lastname) updateQuery.lastname = req.body.lastname;
     if (req.body.username) updateQuery.username = req.body.username;
-    if (req.body.password)
+    // ignore an already-hashed value echoed back by the client (was double-hashing)
+    if (req.body.password && !/^\$2[aby]\$/.test(req.body.password))
       updateQuery.password = bcrypt.hashSync(req.body.password, 10);
     if (req.body.avatar) updateQuery.avatar = req.body.avatar;
     if (req.body.cover) updateQuery.cover = req.body.cover;
@@ -163,7 +176,7 @@ module.exports = {
   postAvatar: (req, res) => {
     if (req.files && req.files.file) {
       const imageFile = req.files.file;
-      imageFile.mv(`public/avatars/${req.user._id}.jpg`, (err) => {
+      imageFile.mv(`${__basedir}/public/avatars/${req.user._id}.jpg`, (err) => {
         if (err) {
 			console.log(err);
 			res.json({ success: false, error: err })}
@@ -171,7 +184,7 @@ module.exports = {
           User.findOneAndUpdate(
             { _id: req.user._id },
             {
-              avatar: `http://localhost:5000/public/avatars/${req.user._id}.jpg`,
+              avatar: `/public/avatars/${req.user._id}.jpg`,
             },
             (err, doc, result) => {
               if (err) {

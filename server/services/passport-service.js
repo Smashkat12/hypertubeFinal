@@ -40,7 +40,7 @@ module.exports = function (passport) {
       {
         clientID: keys.GOOGLE.clientID,
         clientSecret: keys.GOOGLE.secret,
-        callbackURL: "http://localhost:5000/oauth/google/redirect",
+        callbackURL: "/oauth/google/redirect", // relative: resolved against the request host
       },
       (accessToken, refreshToken, profile, done) => {
         User.findOne({ _googleID: profile.id }, function (err, user) {
@@ -81,7 +81,7 @@ module.exports = function (passport) {
       {
         clientID: "bfd8d38aa22fcf52f39d",
         clientSecret: "06e13f97116ce6a7ffd2ee70cc3d8e359f9f4131",
-        callbackURL: "http://localhost:5000/oauth/github/redirect",
+        callbackURL: "/oauth/github/redirect", // relative: resolved against the request host
       },
       (accessToken, refreshToken, profile, done) => {
         User.findOne({ _githubID: profile._json.id }, function (err, user) {
@@ -125,7 +125,7 @@ module.exports = function (passport) {
       {
         clientID: keys.FORTY_TWO.clientID,
         clientSecret: keys.FORTY_TWO.secret,
-        callbackURL: "http://localhost:5000/oauth/42/redirect",
+        callbackURL: "/oauth/42/redirect", // relative: resolved against the request host
       },
       (accessToken, refreshToken, profile, done) => {
         User.findOne({ facebook_id: profile._json.id }).then((user) => {

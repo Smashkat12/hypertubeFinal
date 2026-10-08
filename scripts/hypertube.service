@@ -1,0 +1,18 @@
+# systemd user service: starts Hypertube at boot (user lingering is on, so no login needed).
+# Installed at ~/.config/systemd/user/hypertube.service
+#   systemctl --user status hypertube      # is it running?
+#   systemctl --user restart hypertube     # restart
+#   journalctl --user -u hypertube -f      # live logs (also in ~/logs/hypertube.log)
+[Unit]
+Description=Hypertube streaming app (API :5000, web :3001)
+After=network-online.target
+
+[Service]
+ExecStart=%h/hypertubeFinal/start.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:%h/logs/hypertube.log
+StandardError=append:%h/logs/hypertube.log
+
+[Install]
+WantedBy=default.target

@@ -32,24 +32,24 @@ const Settings = () => {
 
   useEffect(() => {
     if (isDeleted) {
-      axios.get(`http://localhost:5000/auth/logout`);
+      axios.get(`${window.API_URL}/auth/logout`);
       setTimeout(() => {
-        window.location.href = "http://localhost:3000/login";
+        window.location.href = "/login";
       }, 1000);
     }
   }, [isDeleted]);
 
   const handleDeleteAccount = async () => {
     const response = await axios.delete(
-      `http://localhost:5000/users/id`
+      `${window.API_URL}/users/id`
     ); /* API.users.byId.delete(user); */
     if (!isCanceled.current && response.data.success) updateIsDeleted(true);
   };
 
   const getDataUser = async () => {
-    const responseAuth = await axios.get(`http://localhost:5000/auth/`);
+    const responseAuth = await axios.get(`${window.API_URL}/auth/`);
     if (responseAuth) {
-      const responseUser = await axios.get(`http://localhost:5000/users/id`);
+      const responseUser = await axios.get(`${window.API_URL}/users/id`);
       if (!isCanceled.current && responseUser) {
         updateUser(responseUser.data.user[0]);
         updateIsLoaded(true);
@@ -85,7 +85,8 @@ const Settings = () => {
       
       
 
-      const res = await axios.put(`http://localhost:5000/users/id`, user);
+      const { password, ...fields } = user;
+      const res = await axios.put(`${window.API_URL}/users/id`, fields);
       if (!isCanceled.current && res.data.success)
         setSuccess(translations[language].settings.success);
       else if (!isCanceled.current)

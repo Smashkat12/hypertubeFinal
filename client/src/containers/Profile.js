@@ -43,9 +43,9 @@ const Profile = () => {
   }, []);
 
   const fetchData = async () => {
-    const check = await axios.get(`http://localhost:5000/auth/`);
+    const check = await axios.get(`${window.API_URL}/auth/`);
     if (!isCanceled.current && check.data.auth) {
-      const res = await axios.get(`http://localhost:5000/users/id`);
+      const res = await axios.get(`${window.API_URL}/users/id`);
       if (!isCanceled.current && res.data.success) {
         if (!isCanceled.current) updateUser(res.data.user[0]);
         const getHeartbeatList = await getMoviesList(
@@ -80,7 +80,7 @@ const Profile = () => {
   const getMoviesList = (moviesListIds) => {
     return Promise.all(
       moviesListIds.reverse().map(async (movie) => {
-        const res = await axios.get(`http://localhost:5000/movies/${movie.id}`);
+        const res = await axios.get(`${window.API_URL}/movies/${movie.id}`);
         if (res.data.success && res.data.movie) {
           return res.data.movie[0];
         }
@@ -116,7 +116,7 @@ const Profile = () => {
       updateCover(cover);
       body.cover = cover;
     }
-    axios.put(`http://localhost:5000/users/id`, body);
+    axios.put(`${window.API_URL}/users/id`, body);
   };
 
   const onChangeAvatar = async (event) => {
@@ -128,18 +128,18 @@ const Profile = () => {
           data.append("file", event.target.files[0]);
           data.append("filename", event.target.files[0].name);
           const response = await axios.post(
-            `http://localhost:5000/users/avatar`,
+            `${window.API_URL}/users/avatar`,
             data
           );
           if (!isCanceled.current && response.data.success) {
             updateAvatar(
-              `http://localhost:5000/${
+              `${window.API_URL}/${
                 response.data.file
               }?${Date.now()}`
             );
             updateUser({
               ...user,
-              avatar: `http://localhost:5000/${response.data.file}`,
+              avatar: `${window.API_URL}/${response.data.file}`,
             });
           }
         } else alert(translations[language].profile.errors.avatarSize);
