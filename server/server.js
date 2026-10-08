@@ -167,4 +167,24 @@ app.listen(port, () => {
   console.log(`Server Running at ${port}`);
 });
 
+// Production: serve the built web app (client/build) on WEB_PORT too, so the same addresses keep
+// working (LAN :3001, tailscale serve 443 -> :3001). Hashed assets cache for a year; index.html never.
+if (process.env.WEB_PORT) {
+  const web = express();
+  web.use(require("compression")());
+  const BUILD = path.resolve(__dirname, "../client/build");
+  web.use(
+    express.static(BUILD, {
+      index: false,
+      setHeaders: (res, file) =>
+        res.setHeader("Cache-Control", /[\\/]static[\\/]/.test(file) ? "public, max-age=31536000, immutable" : "no-cache"),
+    })
+  );
+  web.get("*", (req, res) => {
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.join(BUILD, "index.html"));
+  });
+  web.listen(process.env.WEB_PORT, () => console.log(`Web app at ${process.env.WEB_PORT}`));
+}
+
 /* ****************************************************END OF SERVER SETUP **************************************************** */
