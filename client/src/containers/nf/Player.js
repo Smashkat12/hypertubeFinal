@@ -461,11 +461,15 @@ const Player = ({ match, location, history }) => {
     const onKey = (e) => {
       if (e.target.tagName === "INPUT") return;
       const k = e.key.toLowerCase();
-      if (k === " " || k === "k") {
+      // TV remotes: OK (Enter) pauses unless a control has focus; dedicated media keys too
+      const onControl = document.activeElement && /^(BUTTON|A|INPUT)$/.test(document.activeElement.tagName);
+      if (k === " " || k === "k" || k === "mediaplaypause" || (k === "enter" && !onControl)) {
         e.preventDefault();
         togglePlay();
-      } else if (k === "arrowright" || k === "l") seekTo(position + 10);
-      else if (k === "arrowleft" || k === "j") seekTo(position - 10);
+      } else if (k === "mediaplay" && video.current && video.current.paused) togglePlay();
+      else if (k === "mediapause" && video.current && !video.current.paused) togglePlay();
+      else if (k === "arrowright" || k === "l" || k === "mediafastforward") seekTo(position + 10);
+      else if (k === "arrowleft" || k === "j" || k === "mediarewind") seekTo(position - 10);
       else if (k === "arrowup") setVol(Math.min(1, volume + 0.1));
       else if (k === "arrowdown") setVol(Math.max(0, volume - 0.1));
       else if (k === "f") toggleFullscreen();
@@ -604,7 +608,7 @@ const Player = ({ match, location, history }) => {
         <div className={`nf-player-center${phase === "error" ? " interactive" : ""}`}>
           {phase !== "ready" && item && <div className="nf-player-backdrop" style={{ backgroundImage: `url("${item.backdrop || item.poster}")` }} />}
           {phase === "error" ? (
-            <div className="nf-loading-card" style={{ width: "min(720px, 92vw)", maxWidth: "none" }}>
+            <div className="nf-loading-card" style={{ width: "min(720px, calc(92 * var(--vw, 1vw)))", maxWidth: "none" }}>
               <h2>Can't play this right now</h2>
               <p>{error}</p>
               {sources && sources.length > 0 && (

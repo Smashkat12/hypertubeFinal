@@ -4,6 +4,9 @@ import './index.css';
 import App from './App';
 import * as serviceWorker from './serviceWorker';
 import Provider from "./store"
+import { initTv } from "./tv";
+
+initTv();
 
 
 ReactDOM.render(

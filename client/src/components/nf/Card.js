@@ -42,7 +42,11 @@ const Card = ({ item, history, progress, label, wide, hideKind }) => {
       className={`nf-card${wide ? " wide" : ""}`}
       onClick={open}
       tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && open()}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault(); // handled here (TV-mode Enter handling skips it)
+        open();
+      }}
       title={item.title}
     >
       {image && !broken ? (

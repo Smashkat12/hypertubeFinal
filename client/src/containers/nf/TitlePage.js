@@ -162,7 +162,7 @@ const TitlePage = ({ match, history, location }) => {
   if (error) return <div className="nf-page nf-center">{error}</div>;
   if (!item)
     return (
-      <div className="nf-center" style={{ minHeight: "100vh" }}>
+      <div className="nf-center" style={{ minHeight: "calc(100 * var(--vh, 1vh))" }}>
         <div className="nf-spinner" />
       </div>
     );
@@ -326,6 +326,7 @@ const TitlePage = ({ match, history, location }) => {
               <div
                 key={ep.number}
                 className={`nf-episode${isCurrent ? " current" : ""}${ep.aired === false ? " unaired" : ""}`}
+                tabIndex={0}
                 onClick={() => playEpisode(ep, season)}
               >
                 <div className="nf-ep-num">{ep.number}</div>

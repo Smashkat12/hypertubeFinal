@@ -2,14 +2,20 @@ import React, { useEffect, useRef, useState, useContext } from "react";
 import { NavLink, Link, withRouter } from "react-router-dom";
 import api, { getMe } from "api";
 import { UserConsumer } from "store";
-import { Search, Close, User, Settings, LogOut, Menu } from "./Icons";
-import { avatarSrc } from "../../config";
+import { Search, Close, User, Settings, LogOut, Menu, Tv } from "./Icons";
+import { avatarSrc } from "../../config";import { isTv, setTv } from "../../tv";
+
 
 const TopNav = ({ history, location }) => {
   const [solid, setSolid] = useState(false);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [menu, setMenu] = useState(false);
+  const [tvMode, setTvModeState] = useState(isTv());
+  const setTvMode = (on) => {
+    setTv(on);
+    setTvModeState(on);
+  };
   const [burger, setBurger] = useState(false);
   const [me, setMe] = useState(null);
   const input = useRef(null);
@@ -129,6 +135,7 @@ const TopNav = ({ history, location }) => {
             className="nf-avatar"
             src={avatar || (me && avatarSrc(me.avatar)) || `${api.defaults.baseURL}/public/avatars/default_avatar.png`}
             alt="Account"
+            tabIndex={0}
             onClick={() => setMenu(!menu)}
           />
           {menu && (
@@ -150,6 +157,9 @@ const TopNav = ({ history, location }) => {
                   FR
                 </b>
               </div>
+              <button onClick={() => setTvMode(!tvMode)}>
+                <Tv size={18} /> TV mode: {tvMode ? "on" : "off"}
+              </button>
               <hr />
               <button onClick={logout}>
                 <LogOut size={18} /> {language === "fr" ? "Se déconnecter" : "Sign out of Hypertube"}

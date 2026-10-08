@@ -28,7 +28,7 @@ const Hero = ({ items, history }) => {
           <i>H</i>
           {KIND[item.kind]}
         </div>
-        <h1 className="nf-hero-title" style={item.title.length > 28 ? { fontSize: "clamp(28px, 3.2vw, 54px)" } : null}>
+        <h1 className="nf-hero-title" style={item.title.length > 28 ? { fontSize: "clamp(28px, calc(3.2 * var(--vw, 1vw)), 54px)" } : null}>
           {item.title}
         </h1>
         <div className="nf-hero-meta">

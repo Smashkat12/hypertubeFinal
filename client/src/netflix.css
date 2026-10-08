@@ -12,7 +12,7 @@
   --nf-accent-2: #ff3d47;
   --nf-green: #46d369;
   --nf-radius: 6px;
-  --nf-pad: 4vw;
+  --nf-pad: calc(4 * var(--vw, 1vw));
   --nf-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -26,7 +26,7 @@ body.nf {
   overflow-x: hidden;
 }
 .nf-app {
-  min-height: 100vh;
+  min-height: calc(100 * var(--vh, 1vh));
   background: var(--nf-bg);
   color: var(--nf-text);
   font-family: var(--nf-font);
@@ -40,7 +40,7 @@ body.nf {
 }
 .nf-page {
   padding-top: 72px;
-  min-height: 100vh;
+  min-height: calc(100 * var(--vh, 1vh));
 }
 
 /* ---------- top navigation ---------- */
@@ -280,7 +280,7 @@ body.nf {
 /* ---------- hero / billboard ---------- */
 .nf-hero {
   position: relative;
-  height: 88vh;
+  height: calc(88 * var(--vh, 1vh));
   min-height: 600px;
   max-height: 900px;
   overflow: hidden;
@@ -314,8 +314,8 @@ body.nf {
   position: absolute;
   z-index: 2;
   left: var(--nf-pad);
-  bottom: calc(9vw + 64px);
-  width: min(44vw, 680px);
+  bottom: calc(calc(9 * var(--vw, 1vw)) + 64px);
+  width: min(calc(44 * var(--vw, 1vw)), 680px);
   animation: nf-rise 0.7s ease both;
 }
 .nf-kind-tag {
@@ -337,7 +337,7 @@ body.nf {
   font-size: 22px;
 }
 .nf-hero-title {
-  font-size: clamp(32px, 4.4vw, 72px);
+  font-size: clamp(32px, calc(4.4 * var(--vw, 1vw)), 72px);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -369,7 +369,7 @@ body.nf {
   color: #ddd;
 }
 .nf-hero-overview {
-  font-size: clamp(14px, 1.2vw, 18px);
+  font-size: clamp(14px, calc(1.2 * var(--vw, 1vw)), 18px);
   line-height: 1.45;
   color: #e8e8e8;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
@@ -388,7 +388,7 @@ body.nf {
   position: absolute;
   z-index: 3;
   right: var(--nf-pad);
-  bottom: calc(9vw + 70px);
+  bottom: calc(calc(9 * var(--vw, 1vw)) + 70px);
   display: flex;
   gap: 6px;
 }
@@ -411,14 +411,14 @@ body.nf {
 .nf-rows {
   position: relative;
   z-index: 5;
-  margin-top: -9vw;
+  margin-top: calc(-9 * var(--vw, 1vw));
   padding-bottom: 60px;
 }
 .nf-rows.flat {
   margin-top: 0;
 }
 .nf-row {
-  margin: 0 0 3vw;
+  margin: 0 0 calc(3 * var(--vw, 1vw));
   position: relative;
 }
 .nf-row-title {
@@ -427,7 +427,7 @@ body.nf {
   gap: 12px;
   padding: 0 var(--nf-pad);
   margin: 0 0 10px;
-  font-size: clamp(16px, 1.4vw, 22px);
+  font-size: clamp(16px, calc(1.4 * var(--vw, 1vw)), 22px);
   font-weight: 700;
   color: #e5e5e5;
 }
@@ -495,7 +495,7 @@ body.nf {
 .nf-card {
   position: relative;
   flex: 0 0 auto;
-  width: clamp(130px, 13.2vw, 220px);
+  width: clamp(130px, calc(13.2 * var(--vw, 1vw)), 220px);
   aspect-ratio: 2 / 3;
   border-radius: var(--nf-radius);
   background: var(--nf-surface);
@@ -504,7 +504,7 @@ body.nf {
   z-index: 1;
 }
 .nf-card.wide {
-  width: clamp(220px, 22vw, 360px);
+  width: clamp(220px, calc(22 * var(--vw, 1vw)), 360px);
   aspect-ratio: 16 / 9;
 }
 .nf-card img.nf-card-img {
@@ -654,7 +654,7 @@ body.nf {
 }
 .nf-browse-head h1 {
   margin: 0;
-  font-size: clamp(26px, 2.6vw, 40px);
+  font-size: clamp(26px, calc(2.6 * var(--vw, 1vw)), 40px);
   font-weight: 800;
 }
 .nf-filters {
@@ -713,7 +713,7 @@ body.nf {
 }
 .nf-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(130px, 13.2vw, 210px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(clamp(130px, calc(13.2 * var(--vw, 1vw)), 210px), 1fr));
   gap: 36px 10px;
   padding: 16px var(--nf-pad) 80px;
 }
@@ -786,7 +786,7 @@ body.nf {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 60vh;
+  min-height: calc(60 * var(--vh, 1vh));
   flex-direction: column;
   gap: 16px;
   color: var(--nf-muted);
@@ -795,7 +795,7 @@ body.nf {
 /* ---------- title page ---------- */
 .nf-title-hero {
   position: relative;
-  min-height: 78vh;
+  min-height: calc(78 * var(--vh, 1vh));
   display: flex;
   align-items: flex-end;
   background: #000;
@@ -822,7 +822,7 @@ body.nf {
   animation: nf-rise 0.6s ease both;
 }
 .nf-title-poster {
-  width: clamp(160px, 17vw, 280px);
+  width: clamp(160px, calc(17 * var(--vw, 1vw)), 280px);
   aspect-ratio: 2 / 3;
   object-fit: cover;
   border-radius: 8px;
@@ -835,7 +835,7 @@ body.nf {
   align-self: flex-end;
 }
 .nf-title-info h1 {
-  font-size: clamp(30px, 3.6vw, 60px);
+  font-size: clamp(30px, calc(3.6 * var(--vw, 1vw)), 60px);
   font-weight: 900;
   line-height: 1.05;
   margin: 0 0 6px;
@@ -1360,7 +1360,7 @@ body.nf {
   right: 32px;
   bottom: 90px;
   width: 340px;
-  max-height: 60vh;
+  max-height: calc(60 * var(--vh, 1vh));
   overflow: auto;
   background: rgba(22, 22, 26, 0.97);
   border: 1px solid var(--nf-line);
@@ -1424,7 +1424,7 @@ body.nf {
 }
 .nf-subtitle span {
   display: inline;
-  font-size: clamp(18px, 2.3vw, 36px);
+  font-size: clamp(18px, calc(2.3 * var(--vw, 1vw)), 36px);
   line-height: 1.35;
   font-weight: 600;
   color: #fff;
@@ -1599,7 +1599,7 @@ body.nf {
   font-size: 16px;
 }
 .legacy-auth {
-  min-height: 100vh;
+  min-height: calc(100 * var(--vh, 1vh));
   padding-top: 90px;
   background: radial-gradient(ellipse at 20% 0%, rgba(229, 9, 20, 0.22), transparent 55%),
     radial-gradient(ellipse at 90% 100%, rgba(84, 185, 197, 0.12), transparent 50%), var(--nf-bg);
@@ -1870,10 +1870,28 @@ body.nf {
     gap: 12px;
   }
   .nf-dl-row {
-    flex-wrap: wrap;
+    gap: 10px;
   }
-  .nf-dl-row .nf-dl-info {
-    flex-basis: calc(100% - 60px);
+  /* episode label above the file name, compact delete button on the right */
+  .nf-dl-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .nf-dl-line strong {
+    white-space: nowrap;
+  }
+  .nf-dl-file {
+    width: 100%;
+    font-size: 12px;
+  }
+  .nf-dl-meta {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .nf-dl-row .nf-btn.small {
+    padding: 6px 10px;
+    font-size: 12px;
   }
 }
 
@@ -1895,4 +1913,30 @@ body.nf {
     padding-left: max(16px, env(safe-area-inset-left));
     padding-right: max(16px, env(safe-area-inset-right));
   }
+}
+
+/* ---------- TV mode (see tv.js): clear focus for remote-control navigation ---------- */
+html.tv :focus {
+  outline: none;
+}
+html.tv :focus-visible,
+html.tv .nf-card:focus,
+html.tv .nf-episode:focus,
+html.tv button:focus,
+html.tv a:focus,
+html.tv .nf-avatar:focus {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+html.tv .nf-card:focus {
+  transform: scale(1.08);
+  z-index: 3;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7);
+}
+html.tv .nf-episode:focus {
+  background: rgba(255, 255, 255, 0.08);
+}
+html.tv .nf-row-arrow {
+  display: none; /* the remote scrolls rows by moving focus */
 }
