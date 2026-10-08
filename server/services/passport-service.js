@@ -6,6 +6,17 @@ const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const keys = require("../config/keys");
 const utils = require("../utils/utils");
 
+// New accounts from Google/GitHub/42 are only created for identities listed in
+// OAUTH_SIGNUP_ALLOWLIST (e.g. "github:octocat,google:me@gmail.com,42:login"); anyone
+// else can't sign up that way. Existing accounts log in as before.
+const mayCreate = (provider, ...ids) => {
+  const allowed = String(process.env.OAUTH_SIGNUP_ALLOWLIST || "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+  return ids.filter(Boolean).some((id) => allowed.includes(`${provider}:${String(id).toLowerCase()}`));
+};
+
 module.exports = function (passport) {
   /* Local Strategy */
   passport.use(
@@ -47,6 +58,8 @@ module.exports = function (passport) {
           if (err) {
             return done(err);
           } else if (!user) {
+            const emails = (profile.emails || []).map((e) => e.value);
+            if (!mayCreate("google", profile.id, ...emails)) return done(null, false);
             const newUser = User({
               _googleID: profile.id,
               firstname: profile.name.givenName,
@@ -88,6 +101,7 @@ module.exports = function (passport) {
           if (err) {
             return done(err);
           } else if (!user) {
+            if (!mayCreate("github", profile._json.login, profile._json.id)) return done(null, false);
             const newUser = User({
               _githubID: profile._json.id,
               language: "en",
@@ -138,6 +152,7 @@ module.exports = function (passport) {
               { new: true }
             ).then((user) => {
               if (user) done(null, user);
+              else if (!mayCreate("42", profile._json.login, profile._json.id)) done(null, false);
               else {
                 let newUser = {
                   firstname: profile._json.first_name.replace(" ", ""),
