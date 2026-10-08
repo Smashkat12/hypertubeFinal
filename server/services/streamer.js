@@ -437,10 +437,11 @@ const safeSid = (sid) => String(sid || "").replace(/[^a-z0-9]/gi, "").slice(0, 6
 // `hls`: write 4s MPEG-TS chunks + an event playlist to a per-session folder instead of one
 // fragmented-MP4 response. iOS Safari can't play an endless MP4 without byte ranges, but plays
 // HLS natively (and it copes better with mobile networks).
-const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync = 0, hls = null }) => {
+// `saver`: data-saver for mobile networks, always re-encoded to 720p at ~2.5 Mbps with 128k audio.
+const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync = 0, hls = null, saver = false }) => {
   const d = describe(info, "x.mkv");
   const v = d.video || {};
-  const copyVideo = v.codec === "h264" && (v.pix_fmt || "yuv420p") === "yuv420p" && (v.height || 0) <= 1080;
+  const copyVideo = !saver && v.codec === "h264" && (v.pix_fmt || "yuv420p") === "yuv420p" && (v.height || 0) <= 1080;
   // When video is stream-copied it can only start on a keyframe, while re-encoded audio would
   // start exactly at t, leaving them out of sync. Start both at that keyframe instead and
   // report the real start so the player's clock and subtitles line up.
@@ -455,10 +456,13 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
   if (copyVideo) args.push("-c:v", "copy");
   else {
     const vf = ["format=yuv420p"];
-    if ((v.height || 0) > 1080) vf.unshift("scale=-2:1080");
+    const maxH = saver ? 720 : 1080;
+    if ((v.height || 0) > maxH) vf.unshift(`scale=-2:${maxH}`);
     args.push("-vf", vf.join(","));
     // no B-frames: otherwise the muxer starts video a couple of frames after the audio
-    if (gpu) args.push("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M", "-bufsize", "20M");
+    if (saver && gpu) args.push("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-b:v", "2M", "-maxrate", "2.5M", "-bufsize", "5M");
+    else if (saver) args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-maxrate", "2.5M", "-bufsize", "5M");
+    else if (gpu) args.push("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M", "-bufsize", "20M");
     else args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "21");
     args.push("-g", "48", "-bf", "0");
   }
@@ -481,7 +485,7 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
   // (no aresample=async here: it silently stretches the audio back and undoes the delay)
   const audioFilter =
     delayMs > 0 ? `adelay=${delayMs}:all=1` : delayMs < 0 ? `atrim=start=${(-delayMs / 1000).toFixed(3)},asetpts=PTS-STARTPTS` : "anull";
-  args.push("-c:a", "aac", "-ac", "2", "-b:a", "192k", "-af", audioFilter);
+  args.push("-c:a", "aac", "-ac", "2", "-b:a", saver ? "128k" : "192k", "-af", audioFilter);
   args.push("-avoid_negative_ts", "make_zero", "-muxdelay", "0");
   if (hls) {
     fs.rmSync(hls.dir, { recursive: true, force: true });

@@ -79,6 +79,8 @@ const Player = ({ match, location, history }) => {
   const [idle, setIdle] = useState(false);
   const [panel, setPanel] = useState(null);
   const [volume, setVolume] = useState(() => parseFloat(localStorage.getItem("nf-volume") || "1"));
+  // data saver: 720p at ~2.5 Mbps (remembered per device, e.g. on for the phone)
+  const [saver, setSaver] = useState(() => localStorage.getItem("nf-saver") === "1");
   const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [hover, setHover] = useState(null);
@@ -222,7 +224,7 @@ const Player = ({ match, location, history }) => {
     setAudio(a >= 0 ? a : 0);
     setSub(subIndex);
     // a sync adjustment needs the audio re-timed on the server, so skip direct play
-    const direct = d.direct && !sync;
+    const direct = d.direct && !sync && !saver;
     setInfo({ ...d, direct, source: s });
     setOffset(direct ? 0 : startAt.current);
     setPhase("ready");
@@ -237,8 +239,8 @@ const Player = ({ match, location, history }) => {
     if (info.direct) return `${base}/stream/raw/${info.hash}/${info.index}${token ? `?${token}` : ""}`;
     // iPhone/iPad/Safari can't play an endless MP4 stream, but play HLS natively
     if (NATIVE_HLS)
-      return `${base}/stream/hls/${info.hash}/${info.index}/index.m3u8?t=${offset.toFixed(2)}&audio=${audio}&sub=${sub}&sid=${sid.current}&sync=${sync}&${token}`;
-    return `${base}/stream/play/${info.hash}/${info.index}?t=${offset.toFixed(2)}&audio=${audio}&sub=${sub}&sid=${sid.current}&sync=${sync}&${token}`;
+      return `${base}/stream/hls/${info.hash}/${info.index}/index.m3u8?t=${offset.toFixed(2)}&audio=${audio}&sub=${sub}&sid=${sid.current}&sync=${sync}&q=${saver ? "saver" : ""}&${token}`;
+    return `${base}/stream/play/${info.hash}/${info.index}?t=${offset.toFixed(2)}&audio=${audio}&sub=${sub}&sid=${sid.current}&sync=${sync}&q=${saver ? "saver" : ""}&${token}`;
   })();
 
   useEffect(() => {
@@ -458,6 +460,17 @@ const Player = ({ match, location, history }) => {
     }
   };
 
+  // switch quality and restart the stream at the current spot
+  const changeSaver = (on) => {
+    if (on === saver) return;
+    setSaver(on);
+    localStorage.setItem("nf-saver", on ? "1" : "0");
+    if (info) {
+      if (info.direct && on) setInfo({ ...info, direct: false });
+      setOffset(position);
+    }
+  };
+
   const scrubFrom = (e) => {
     const r = e.currentTarget.getBoundingClientRect();
     return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * duration;
@@ -665,6 +678,13 @@ const Player = ({ match, location, history }) => {
 
       {panel === "tracks" && info && (
         <div className="nf-popover" onClick={(e) => e.stopPropagation()}>
+          <h4>Quality</h4>
+          <button className={!saver ? "on" : ""} onClick={() => changeSaver(false)}>
+            Original{info.video && info.video.width ? ` (${info.video.width >= 3200 ? "4K" : info.video.width >= 1800 ? "1080p" : info.video.width >= 1200 ? "720p" : "SD"})` : ""}
+          </button>
+          <button className={saver ? "on" : ""} onClick={() => changeSaver(true)}>
+            Data saver (720p · up to ~1 GB/hour)
+          </button>
           <h4>Audio</h4>
           {info.audio.length === 0 && <button disabled>No audio tracks</button>}
           {info.audio.map((t) => (

@@ -93,7 +93,8 @@ exports.router = (() => {
       const info = await streamer.probe(hash, index);
       const d = streamer.describe(info, file.name);
       const sync = parseInt(req.query.sync, 10) || 0;
-      if (d.direct && !sync && req.query.mode !== "transcode") return streamer.sendRange(req, res, file);
+      const saver = req.query.q === "saver";
+      if (d.direct && !sync && !saver && req.query.mode !== "transcode") return streamer.sendRange(req, res, file);
       await streamer.transcode(req, res, {
         hash,
         index,
@@ -103,6 +104,7 @@ exports.router = (() => {
         sub: req.query.sub === undefined || req.query.sub === "" ? -1 : parseInt(req.query.sub, 10),
         sid: String(req.query.sid || req.sessionID || "default").slice(0, 64),
         sync,
+        saver,
       });
     } catch (e) {
       if (!res.headersSent) res.sendStatus(500);
@@ -115,6 +117,7 @@ exports.router = (() => {
     audio: parseInt(req.query.audio, 10) || 0,
     sub: req.query.sub === undefined || req.query.sub === "" ? -1 : parseInt(req.query.sub, 10),
     sync: parseInt(req.query.sync, 10) || 0,
+    saver: req.query.q === "saver",
   });
   router.get("/hls/:hash/:index/index.m3u8", allowMedia, async (req, res) => {
     try {
