@@ -405,16 +405,17 @@ const killSession = (sid) => {
       s.proc.kill("SIGKILL");
     } catch (e) {}
   }
+  if (s && s.hls) fs.rm(s.hls.dir, { recursive: true, force: true }, () => {});
 };
 setInterval(() => {
   const now = Date.now();
   Object.keys(sessions).forEach((sid) => {
-    if (now - sessions[sid].touched > 60 * 60 * 1000) {
+    if (now - sessions[sid].touched > (sessions[sid].hls ? 2 * 60 * 1000 : 60 * 60 * 1000)) {
       killSession(sid);
       delete sessions[sid];
     }
   });
-}, 5 * 60000).unref();
+}, 60000).unref();
 
 // the keyframe a seek to t actually lands on (the demuxer seeks backwards to one)
 const keyframeAt = (hash, index, t) =>
@@ -430,7 +431,13 @@ const keyframeAt = (hash, index, t) =>
     );
   });
 
-const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync = 0 }) => {
+const HLS_ROOT = path.join(os.tmpdir(), "hypertube-hls");
+const safeSid = (sid) => String(sid || "").replace(/[^a-z0-9]/gi, "").slice(0, 64) || "default";
+
+// `hls`: write 4s MPEG-TS chunks + an event playlist to a per-session folder instead of one
+// fragmented-MP4 response. iOS Safari can't play an endless MP4 without byte ranges, but plays
+// HLS natively (and it copes better with mobile networks).
+const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync = 0, hls = null }) => {
   const d = describe(info, "x.mkv");
   const v = d.video || {};
   const copyVideo = v.codec === "h264" && (v.pix_fmt || "yuv420p") === "yuv420p" && (v.height || 0) <= 1080;
@@ -476,7 +483,15 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
     delayMs > 0 ? `adelay=${delayMs}:all=1` : delayMs < 0 ? `atrim=start=${(-delayMs / 1000).toFixed(3)},asetpts=PTS-STARTPTS` : "anull";
   args.push("-c:a", "aac", "-ac", "2", "-b:a", "192k", "-af", audioFilter);
   args.push("-avoid_negative_ts", "make_zero", "-muxdelay", "0");
-  args.push("-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-frag_duration", "2000000", "pipe:1");
+  if (hls) {
+    fs.rmSync(hls.dir, { recursive: true, force: true });
+    fs.mkdirSync(hls.dir, { recursive: true });
+    args.push("-f", "hls", "-hls_time", "4", "-hls_list_size", "0", "-hls_playlist_type", "event");
+    args.push("-hls_flags", "independent_segments+temp_file", "-hls_segment_filename", path.join(hls.dir, "seg%05d.ts"));
+    args.push(path.join(hls.dir, "index.m3u8"));
+  } else {
+    args.push("-f", "mp4", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-frag_duration", "2000000", "pipe:1");
+  }
   const subStream = sub >= 0 ? d.subtitles[sub] : null;
   if (subStream && subStream.text) {
     args.push("-map", `0:s:${sub}`, "-c:s", "webvtt", "-f", "webvtt", "-flush_packets", "1", "pipe:3");
@@ -484,7 +499,7 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
 
   killSession(sid);
   const proc = spawn(FFMPEG, args, { stdio: ["ignore", "pipe", "pipe", "pipe"] });
-  const session = (sessions[sid] = { proc, subs: "", offset: t, requested, touched: Date.now(), done: false });
+  const session = (sessions[sid] = { proc, subs: "", offset: t, requested, touched: Date.now(), done: false, hls });
   proc.stdio[3].on("data", (chunk) => (session.subs += chunk.toString()));
   let errText = "";
   proc.stderr.on("data", (c) => (errText = (errText + c.toString()).slice(-2000)));
@@ -493,6 +508,7 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
     if (code && code !== 255 && errText) console.log(`ffmpeg[${sid}] exited ${code}: ${errText.trim()}`);
   });
 
+  if (hls) return session;
   if (res.destroyed) return killSession(sid);
   res.writeHead(200, { "Content-Type": "video/mp4", "Cache-Control": "no-store", "X-Stream-Offset": t.toFixed(3) });
   proc.stdout.pipe(res);
@@ -740,5 +756,7 @@ module.exports = {
   describe,
   transcode,
   sessions,
+  HLS_ROOT,
+  safeSid,
   TORRENT_DIR,
 };

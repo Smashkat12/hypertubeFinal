@@ -3,6 +3,7 @@ const path = require("path");
 const streamer = require("../services/streamer");
 
 const crypto = require("crypto");
+const fs = require("fs");
 const keys = require("../config/keys");
 
 // Video is served from a second hostname (127.0.0.1 vs localhost) so long-lived streams get
@@ -106,6 +107,58 @@ exports.router = (() => {
     } catch (e) {
       if (!res.headersSent) res.sendStatus(500);
     }
+  });
+
+  // ---- HLS (iPhone/iPad/Safari): playlist starts or reuses a transcode session; chunks follow ----
+  const hlsParams = (req) => ({
+    t: Math.max(0, parseFloat(req.query.t) || 0),
+    audio: parseInt(req.query.audio, 10) || 0,
+    sub: req.query.sub === undefined || req.query.sub === "" ? -1 : parseInt(req.query.sub, 10),
+    sync: parseInt(req.query.sync, 10) || 0,
+  });
+  router.get("/hls/:hash/:index/index.m3u8", allowMedia, async (req, res) => {
+    try {
+      const hash = streamer.normHash(req.params.hash);
+      const index = +req.params.index;
+      const sid = streamer.safeSid(req.query.sid);
+      const p = hlsParams(req);
+      const key = JSON.stringify([hash, index, p]);
+      let session = streamer.sessions[sid];
+      if (!session || !session.hls || session.hls.key !== key || (session.done && !fs.existsSync(path.join(session.hls.dir, "index.m3u8")))) {
+        const file = await streamer.openFile(hash, index, { keep: true });
+        if (!file) return res.sendStatus(404);
+        const info = await streamer.probe(hash, index);
+        const dir = path.join(streamer.HLS_ROOT, sid);
+        session = await streamer.transcode(req, res, { hash, index, info, ...p, sid, hls: { dir, key } });
+      }
+      session.touched = Date.now();
+      // wait for the first chunk before answering
+      const playlist = path.join(session.hls.dir, "index.m3u8");
+      for (let i = 0; i < 120; i++) {
+        if (fs.existsSync(playlist) && fs.readFileSync(playlist, "utf8").includes("#EXTINF")) break;
+        if (session.done) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      if (!fs.existsSync(playlist)) return res.sendStatus(504);
+      const qs = `sid=${sid}&token=${encodeURIComponent(req.query.token || "")}`;
+      const body = fs
+        .readFileSync(playlist, "utf8")
+        .replace("#EXTM3U\n", "#EXTM3U\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n") // start at the beginning, not the live edge
+        .split("\n")
+        .map((l) => (l && !l.startsWith("#") ? `${l}?${qs}` : l))
+        .join("\n");
+      res.set({ "Content-Type": "application/vnd.apple.mpegurl", "Cache-Control": "no-store", "X-Stream-Offset": session.offset.toFixed(3) });
+      res.send(body);
+    } catch (e) {
+      if (!res.headersSent) res.sendStatus(500);
+    }
+  });
+  router.get("/hls/:hash/:index/:seg", allowMedia, (req, res) => {
+    const session = streamer.sessions[streamer.safeSid(req.query.sid)];
+    if (!session || !session.hls || !/^seg\d{5}\.ts$/.test(req.params.seg)) return res.sendStatus(404);
+    session.touched = Date.now();
+    res.set({ "Content-Type": "video/mp2t", "Cache-Control": "no-store" });
+    res.sendFile(path.join(session.hls.dir, req.params.seg), (err) => err && !res.headersSent && res.sendStatus(404));
   });
 
   // WebVTT extracted so far for a transcoding session (the player polls this)

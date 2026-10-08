@@ -3,6 +3,9 @@ import { withRouter } from "react-router-dom";
 import api, { SERVER, getTitle, getSources, raceSources, recallPick, pickKey, prepareSources, streamInfo, streamStatus, streamSubs, libraryRecord, getMe, titlePath, watchPath } from "api";
 import { SourceList } from "./TitlePage";
 import * as I from "components/nf/Icons";
+// browsers that play HLS themselves (Safari, all iOS browsers)
+const NATIVE_HLS = typeof document !== "undefined" && document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
+
 
 const fmt = (s) => {
   if (!isFinite(s) || s < 0) s = 0;
@@ -232,6 +235,9 @@ const Player = ({ match, location, history }) => {
     const base = info.mediaBase || SERVER;
     const token = info.token ? `token=${encodeURIComponent(info.token)}` : "";
     if (info.direct) return `${base}/stream/raw/${info.hash}/${info.index}${token ? `?${token}` : ""}`;
+    // iPhone/iPad/Safari can't play an endless MP4 stream, but play HLS natively
+    if (NATIVE_HLS)
+      return `${base}/stream/hls/${info.hash}/${info.index}/index.m3u8?t=${offset.toFixed(2)}&audio=${audio}&sub=${sub}&sid=${sid.current}&sync=${sync}&${token}`;
     return `${base}/stream/play/${info.hash}/${info.index}?t=${offset.toFixed(2)}&audio=${audio}&sub=${sub}&sid=${sid.current}&sync=${sync}&${token}`;
   })();
 
@@ -476,6 +482,7 @@ const Player = ({ match, location, history }) => {
     >
       <video
         ref={video}
+        playsInline
         onClick={(e) => {
           e.stopPropagation();
           if (panel) return setPanel(null);
