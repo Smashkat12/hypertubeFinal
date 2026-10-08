@@ -77,15 +77,15 @@ module.exports = {
         transporter.sendMail(mailOptions, function (error, info) {
           if (error) {
             console.log(chalk.bold.redBright("Email error: "), error.message);
-            if (process.env.NODE_ENV === "production") {
-              // never skip verification in prod; drop the user so signup can be retried
-              User.deleteOne({ _id: newUser._id }, () => {
-                res.json({ success: false, error: "Could not send confirmation email" });
-              });
-            } else {
-              // local dev only: mail account is dead, auto-confirm so signups still work
+            if (process.env.ALLOW_UNVERIFIED_SIGNUP === "1") {
+              // explicit opt-in only (the mail account is dead): confirm without the email
               User.updateOne({ _id: newUser._id }, { confirmKey: "confirmed" }, () => {
                 res.json({ success: true, user: newUser });
+              });
+            } else {
+              // fail closed: drop the user so signup can be retried once mail works
+              User.deleteOne({ _id: newUser._id }, () => {
+                res.json({ success: false, error: "Could not send confirmation email" });
               });
             }
           } else {
