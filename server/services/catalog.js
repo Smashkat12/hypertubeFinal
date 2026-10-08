@@ -579,17 +579,30 @@ const animeSources = async (id, episode) => {
 // releases named like an episode but shipping a program/archive are malware bait
 const BAIT = /\.(exe|scr|bat|cmd|msi|lnk|zip|rar|7z|iso)\s*$|\bpassword\b|codec\s*pack/i;
 
-// prefer single episodes, 1080p, H.264 (no transcoding), well-seeded
+// Prefer what starts fast and plays without heavy transcoding: 8-bit H.264 (video is copied,
+// not re-encoded), 1080p, single episodes, healthy swarms. AV1/10-bit/HEVC need a full
+// re-encode; multi-season packs and remuxes are huge; tiny swarms stall.
 const rankSources = (rawList) => {
   const list = rawList.filter((s) => !BAIT.test(s.name || ""));
   const qScore = { "1080p": 3, "720p": 2, "2160p": 1, "480p": 0 };
-  const score = (s) =>
-    Math.log10(s.seeds + 1) * 3 +
-    (qScore[s.quality] || 1) * 1.5 +
-    (s.codec === "x264" ? 2 : 0) +
-    (s.batch ? -2 : 0) +
-    (s.trusted ? 1 : 0) +
-    (/subsplease|erai-raws/i.test(s.group || "") ? 1 : 0);
+  const codecScore = { x264: 2, HEVC: -1, AV1: -3 };
+  const score = (s) => {
+    const n = s.name || "";
+    const tenBit = /10.?bit|hi10/i.test(n);
+    const multiSeason = /S\d{1,2}\s?[-~]\s?S?\d{1,2}\b(?!\s?E)|seasons?\s?\d{1,2}\s?[-~&]\s?\d{1,2}|complete series/i.test(n);
+    return (
+      Math.log10(s.seeds + 1) * 4 +
+      (s.seeds < 3 ? -3 : s.seeds < 10 ? -1.5 : 0) +
+      (qScore[s.quality] || 1) * 1.5 +
+      (tenBit && s.codec === "x264" ? 0 : codecScore[s.codec] || 0) +
+      (tenBit ? -1.5 : 0) +
+      (s.batch ? -2 : 0) +
+      (multiSeason ? -2 : 0) +
+      (/\bremux\b/i.test(n) ? -2 : 0) +
+      (s.trusted ? 1 : 0) +
+      (/subsplease|erai-raws/i.test(s.group || "") ? 1 : 0)
+    );
+  };
   return list.map((s) => ({ ...s, score: +score(s).toFixed(2) })).sort((a, b) => b.score - a.score).slice(0, 25);
 };
 

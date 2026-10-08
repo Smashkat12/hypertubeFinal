@@ -129,6 +129,11 @@ exports.router = (() => {
         : streamer.removeTorrent({ hash: req.query.hash, name: req.query.name && String(req.query.name) }),
     })
   );
+  // check followed shows for new episodes now (it also runs every few hours by itself)
+  router.post("/downloads/check", requireAuth, async (req, res) => {
+    const started = await require("../services/autoDownload").run();
+    res.json({ success: true, started: started || 0 });
+  });
   router.post("/downloads/cleanup", requireAuth, (req, res) => res.json({ success: true, freed: streamer.cleanupLoose() }));
 
   // warm up (or, with full=1, fully download) the best of a few candidate torrents for an

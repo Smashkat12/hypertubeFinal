@@ -167,6 +167,9 @@ app.listen(port, () => {
   console.log(`Server Running at ${port}`);
 });
 
+// download new episodes of followed shows in the background
+require("./services/autoDownload").start();
+
 // Production: serve the built web app (client/build) on WEB_PORT too, so the same addresses keep
 // working (LAN :3001, tailscale serve 443 -> :3001). Hashed assets cache for a year; index.html never.
 if (process.env.WEB_PORT) {

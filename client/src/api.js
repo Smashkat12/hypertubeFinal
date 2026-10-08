@@ -59,6 +59,7 @@ export const prepareSources = (kind, id, season, episode, sources, { full = fals
 export const getDownloads = () => api.get("/stream/downloads").then((r) => r.data);
 export const deleteDownload = (params) => api.delete("/stream/downloads", { params }).then((r) => r.data);
 export const cleanupDownloads = () => api.post("/stream/downloads/cleanup").then((r) => r.data);
+export const checkNewEpisodes = () => api.post("/stream/downloads/check").then((r) => r.data);
 export const streamStatus = (hash) => api.get(`/stream/status/${hash}`).then((r) => r.data);
 export const streamSubs = (sid) => api.get(`/stream/subs/${sid}`).then((r) => r.data);
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDownloads, deleteDownload, cleanupDownloads, getTitle, titlePath } from "api";
+import { getDownloads, deleteDownload, cleanupDownloads, checkNewEpisodes, getTitle, titlePath } from "api";
 import { Play } from "components/nf/Icons";
 
 const fmtBytes = (b) => (b >= 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} GB` : `${Math.max(0, Math.round(b / 1024 ** 2))} MB`);
@@ -34,6 +34,8 @@ const Downloads = () => {
   const [error, setError] = useState(null);
   const [cleaning, setCleaning] = useState(false);
   const [freed, setFreed] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState(null);
 
   const load = useCallback(
     () =>
@@ -89,6 +91,17 @@ const Downloads = () => {
   const usedPct = Math.min(100, (data.total / data.limit) * 100);
 
   const remove = (params) => deleteDownload(params).then(load);
+  const checkNow = () => {
+    setChecking(true);
+    setChecked(null);
+    checkNewEpisodes()
+      .then((r) => setChecked(r.started || 0))
+      .catch(() => setChecked(-1))
+      .finally(() => {
+        setChecking(false);
+        load();
+      });
+  };
   const cleanup = () => {
     setCleaning(true);
     cleanupDownloads()
@@ -124,6 +137,19 @@ const Downloads = () => {
           </div>
         )}
         {freed !== null && <div className="nf-dl-freed">Freed {fmtBytes(freed)}.</div>}
+        <div className="nf-dl-cleanup">
+          <span title="Shows in My List or Continue Watching: new episodes from the last two weeks and the next ones after where you stopped">
+            New episodes of shows you follow download automatically.
+          </span>
+          <button className="nf-btn small secondary" disabled={checking} onClick={checkNow}>
+            {checking ? "Checking…" : "Check now"}
+          </button>
+          {checked !== null && (
+            <span className="nf-dl-freed">
+              {checked < 0 ? "Check failed" : checked ? `Started ${checked} download${checked > 1 ? "s" : ""}` : "Nothing new"}
+            </span>
+          )}
+        </div>
       </div>
 
       {!ordered.length && (

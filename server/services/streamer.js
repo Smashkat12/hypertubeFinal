@@ -589,7 +589,12 @@ const onDiskBytes = (name) => {
 
 // everything the user has played/prefetched, plus loose torrents nothing points at
 const listDownloads = () => {
-  const items = Object.entries(library.picks).map(([key, p]) => {
+  // warm-ups (first few MB fetched for a quick start) aren't downloads: list finished or queued files only
+  const listed = Object.entries(library.picks).filter(([, p]) => {
+    const t = library.torrents[p.hash];
+    return t && (t.complete.includes(p.index) || pendingWants(p.hash).includes(p.index));
+  });
+  const items = listed.map(([key, p]) => {
     const t = library.torrents[p.hash] || {};
     const f = (t.files || [])[p.index] || {};
     const [kind, id, season, episode] = key.split(":");
@@ -609,7 +614,7 @@ const listDownloads = () => {
       at: p.at,
     };
   });
-  const used = new Set(Object.values(library.picks).map((p) => library.torrents[p.hash] && library.torrents[p.hash].name));
+  const used = new Set(listed.map(([, p]) => library.torrents[p.hash] && library.torrents[p.hash].name));
   let loose = [];
   try {
     loose = fs
