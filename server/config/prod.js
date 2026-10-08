@@ -1,3 +1,2 @@
-module.exports = {
-  mongoURI: process.env.MONGO_URI,
-};
+// Same environment-based settings as development.
+module.exports = require("./dev");

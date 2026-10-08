@@ -16,6 +16,12 @@ const passport = require("passport");
 const contimeout = require("connect-timeout");
 const { v4: uuidv4 } = require("uuid");
 const keys = require("./config/keys");
+// secrets come from .env via start.sh (see .env.example)
+const missing = ["SESSION_SECRET", "STREAM_TOKEN_SECRET"].filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error(`Missing ${missing.join(", ")}: copy .env.example to .env and fill it in`);
+  process.exit(1);
+}
 const authRouter = require("./routes/authRouter");
 const moviesRouter = require("./routes/moviesRouter");
 const userRouter = require("./routes/usersRouter");
@@ -63,7 +69,7 @@ app.use(
     genid: () => {
       return uuidv4();
     },
-    secret: "SecretSource",
+    secret: keys.SESSION.secret,
     cookie: {
       secure: "auto",
       maxAge: 1000 * 60 * 60 * 24 * 7, // expires in a week

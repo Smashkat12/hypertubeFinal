@@ -8,7 +8,7 @@ const keys = require("../config/keys");
 // Video is served from a second hostname (127.0.0.1 vs localhost) so long-lived streams get
 // their own browser connection pool and don't starve API calls (6 connections per host).
 // That origin has no session cookie, so the player gets a signed, expiring token instead.
-const SECRET = (keys.JWT && keys.JWT.secret) || "hypertube-stream";
+const SECRET = keys.JWT && keys.JWT.secret;
 const signToken = (uid, hash) => {
   const exp = Date.now() + 12 * 3600 * 1000;
   const sig = crypto.createHmac("sha256", SECRET).update(`${uid}:${hash}:${exp}`).digest("hex").slice(0, 32);

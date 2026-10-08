@@ -1,27 +1,31 @@
+// Secrets come from the environment (start.sh loads them from .env at the repo root;
+// see .env.example). Nothing secret belongs in this file.
+const env = process.env;
+
 module.exports = {
   MONGODB: {
-    mongoURI: process.env.MONGO_URI ||
-      "mongodb+srv://Hypertube:Hypertube@cluster0.1mxy5.mongodb.net/Hypertube?retryWrites=true&w=majority",
+    mongoURI: env.MONGO_URI || "mongodb://localhost:27017/Hypertube",
   },
   FACEBOOK: {
-    clientID: "3378956088794112",
-    secret: "1d3d4bb2bc41a8daf7c139bcc97b870d",
+    clientID: env.FACEBOOK_CLIENT_ID,
+    secret: env.FACEBOOK_CLIENT_SECRET,
   },
   GOOGLE: {
-    clientID:
-      "857670490853-uupqhuflbgmj8u4osrsa8j3ol4e5abi5.apps.googleusercontent.com",
-    secret: "wOhD3ybQdj7kUN4aFTJmziC5",
+    clientID: env.GOOGLE_CLIENT_ID,
+    secret: env.GOOGLE_CLIENT_SECRET,
+  },
+  GITHUB: {
+    clientID: env.GITHUB_CLIENT_ID,
+    secret: env.GITHUB_CLIENT_SECRET,
   },
   FORTY_TWO: {
-    clientID:
-      "fce83e782081bef0dc781dd252038d3873eb7710438a1e1ef69ccbed3ef27285",
-    secret: "8bcfab08409ad1d42eb6ba6d11b07a643a999669a76d529d513a481be6c6ddd3",
+    clientID: env.FORTY_TWO_CLIENT_ID,
+    secret: env.FORTY_TWO_CLIENT_SECRET,
+  },
+  SESSION: {
+    secret: env.SESSION_SECRET,
   },
   JWT: {
-    secret: "thesecretesourcetojwt",
-  },
-  sendgrid: {
-    apikey:
-      process.env.SENDGRID_API_KEY,
+    secret: env.STREAM_TOKEN_SECRET,
   },
 };

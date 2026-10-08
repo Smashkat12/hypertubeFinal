@@ -79,8 +79,8 @@ module.exports = function (passport) {
   passport.use(
     new GitHubStrategy(
       {
-        clientID: "bfd8d38aa22fcf52f39d",
-        clientSecret: "06e13f97116ce6a7ffd2ee70cc3d8e359f9f4131",
+        clientID: keys.GITHUB.clientID,
+        clientSecret: keys.GITHUB.secret,
         callbackURL: "/oauth/github/redirect", // relative: resolved against the request host
       },
       (accessToken, refreshToken, profile, done) => {

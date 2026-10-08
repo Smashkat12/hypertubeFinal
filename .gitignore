@@ -3,7 +3,9 @@ client/build/
 
 # local secrets
 .test-credentials
-.env*
+.env
+.env.*
+!.env.example
 
 # downloads (normally on the USB drive) and user uploads
 server/torrents/*
