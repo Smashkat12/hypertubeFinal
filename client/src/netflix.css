@@ -1876,3 +1876,23 @@ body.nf {
     flex-basis: calc(100% - 60px);
   }
 }
+
+/* keep player controls clear of the notch / Dynamic Island / home bar (landscape iPhone) */
+.nf-player-top,
+.nf-player-bottom {
+  padding-left: max(32px, env(safe-area-inset-left));
+  padding-right: max(32px, env(safe-area-inset-right));
+}
+.nf-player-top {
+  padding-top: max(22px, env(safe-area-inset-top));
+}
+.nf-player-bottom {
+  padding-bottom: max(22px, env(safe-area-inset-bottom));
+}
+@media (max-width: 700px), (max-height: 500px) {
+  .nf-player-top,
+  .nf-player-bottom {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+}

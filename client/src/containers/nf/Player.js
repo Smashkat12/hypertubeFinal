@@ -383,15 +383,65 @@ const Player = ({ match, location, history }) => {
     localStorage.setItem("nf-volume", String(val));
   };
 
+  // Desktop/Android/iPad fullscreen the whole player (custom controls stay). iPhone Safari can only
+  // fullscreen the <video> itself in Apple's native player, which also follows device rotation.
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) root.current.requestFullscreen().catch(() => {});
-    else document.exitFullscreen();
+    const el = root.current;
+    const v = video.current;
+    if (fsElement()) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    if (el && el.requestFullscreen) {
+      el.requestFullscreen()
+        .then(() => window.screen.orientation && window.screen.orientation.lock && window.screen.orientation.lock("landscape").catch(() => {}))
+        .catch(() => {});
+    } else if (el && el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (v && v.webkitEnterFullscreen) v.webkitEnterFullscreen();
   };
   useEffect(() => {
-    const f = () => setFullscreen(!!document.fullscreenElement);
+    const f = () => setFullscreen(!!fsElement());
     document.addEventListener("fullscreenchange", f);
-    return () => document.removeEventListener("fullscreenchange", f);
+    document.addEventListener("webkitfullscreenchange", f);
+    return () => {
+      document.removeEventListener("fullscreenchange", f);
+      document.removeEventListener("webkitfullscreenchange", f);
+    };
   }, []);
+
+  // Apple's native fullscreen player can't see our subtitle overlay, so mirror the cues into a
+  // real text track and show it only while that player is up.
+  const nativeTrack = useRef(null);
+  const [nativeFs, setNativeFs] = useState(false);
+  useEffect(() => {
+    const v = video.current;
+    if (!v || !v.webkitEnterFullscreen) return;
+    const on = () => setNativeFs(true);
+    const off = () => setNativeFs(false);
+    v.addEventListener("webkitbeginfullscreen", on);
+    v.addEventListener("webkitendfullscreen", off);
+    return () => {
+      v.removeEventListener("webkitbeginfullscreen", on);
+      v.removeEventListener("webkitendfullscreen", off);
+    };
+  }, []);
+  useEffect(() => {
+    const v = video.current;
+    if (!v || !v.addTextTrack || typeof window.VTTCue === "undefined") return;
+    if (!nativeTrack.current) nativeTrack.current = { track: v.addTextTrack("subtitles", "Subtitles", "en"), added: 0 };
+    const nt = nativeTrack.current;
+    // a new stream (seek, track change) resets the cue list
+    if (cues.length < nt.added || sub < 0) {
+      Array.from(nt.track.cues || []).forEach((c) => nt.track.removeCue(c));
+      nt.added = 0;
+    }
+    if (sub >= 0) {
+      cues.slice(nt.added).forEach((c) => nt.track.addCue(new window.VTTCue(c.start, c.end, c.text)));
+      nt.added = cues.length;
+    }
+    nt.track.mode = nativeFs && sub >= 0 ? "showing" : "hidden";
+  }, [cues, sub, nativeFs]);
+
+  // on touch screens a tap shows/hides the controls (play/pause is the on-screen button)
+  const lastPointer = useRef("mouse");
 
   const wake = () => {
     setIdle(false);
@@ -491,6 +541,8 @@ const Player = ({ match, location, history }) => {
       ref={root}
       className={`nf-player${idle && playing && !panel ? " idle" : ""}`}
       onMouseMove={wake}
+      onTouchStart={wake}
+      onPointerDown={(e) => (lastPointer.current = e.pointerType)}
       onClick={() => panel && setPanel(null)}
     >
       <video
@@ -499,6 +551,14 @@ const Player = ({ match, location, history }) => {
         onClick={(e) => {
           e.stopPropagation();
           if (panel) return setPanel(null);
+          if (lastPointer.current === "touch") {
+            if (idle) wake();
+            else {
+              clearTimeout(idleTimer.current);
+              setIdle(true);
+            }
+            return;
+          }
           togglePlay();
         }}
         onDoubleClick={toggleFullscreen}

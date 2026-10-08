@@ -33,7 +33,13 @@ fi
 BUILD=client/build/index.html
 if [ ! -f "$BUILD" ] || [ -n "$(find client/src client/public -newer "$BUILD" -print -quit)" ]; then
   echo "Building web app..."
-  (cd client && npx react-scripts build) || exit 1
+  # a failed build would leave client/build empty; keep serving the last good one instead
+  rm -rf client/build.prev && [ -d client/build ] && cp -a client/build client/build.prev
+  if ! (cd client && npx react-scripts build); then
+    echo "Web app build FAILED - serving the previous build"
+    [ -d client/build.prev ] && rm -rf client/build && mv client/build.prev client/build && touch "$BUILD"
+    [ -f "$BUILD" ] || exit 1
+  fi
 fi
 export NODE_ENV=production WEB_PORT=3001
 exec node server/server.js

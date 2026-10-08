@@ -1,5 +1,6 @@
 node_modules/
 client/build/
+client/build.prev/
 
 # local secrets
 .test-credentials
