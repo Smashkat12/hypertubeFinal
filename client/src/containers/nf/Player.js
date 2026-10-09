@@ -353,7 +353,8 @@ const Player = ({ match, location, history }) => {
     if (!v) return;
     if (v.paused) v.play().catch(() => {});
     else v.pause();
-    setFlash(v.paused ? "pause" : "play");
+    // one stable key per tap: the icon fades once even though the player re-renders while playing
+    setFlash({ kind: v.paused ? "pause" : "play", n: Date.now() });
   };
 
   const seekTo = (t) => {
@@ -646,8 +647,8 @@ const Player = ({ match, location, history }) => {
       )}
 
       {flash && (
-        <div className="nf-flash" key={`${flash}${Date.now()}`} onAnimationEnd={() => setFlash(null)}>
-          {flash === "play" ? <I.Play size={38} /> : <I.Pause size={38} />}
+        <div className="nf-flash" key={flash.n} onAnimationEnd={() => setFlash(null)}>
+          {flash.kind === "play" ? <I.Play size={38} /> : <I.Pause size={38} />}
         </div>
       )}
 
