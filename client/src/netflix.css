@@ -1940,3 +1940,75 @@ html.tv .nf-episode:focus {
 html.tv .nf-row-arrow {
   display: none; /* the remote scrolls rows by moving focus */
 }
+
+/* ---------- phones: header and player controls ---------- */
+.nf-nav {
+  padding-left: max(var(--nf-pad), env(safe-area-inset-left));
+  padding-right: max(var(--nf-pad), env(safe-area-inset-right));
+}
+.nf-controls .nf-pbtn {
+  flex-shrink: 0;
+}
+.nf-time {
+  white-space: nowrap;
+}
+/* touch devices use the hardware volume buttons (iOS ignores volume set by a page) */
+@media (hover: none) and (pointer: coarse) {
+  .nf-volume {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .nf-nav {
+    gap: 12px;
+  }
+  .nf-app a.nf-logo,
+  .nf-logo {
+    font-size: 20px;
+  }
+  .nf-nav-right {
+    gap: 12px;
+  }
+  /* while searching, the box takes the logo's place and fills the bar */
+  .nf-nav.searching .nf-logo {
+    display: none;
+  }
+  .nf-nav.searching .nf-nav-right,
+  .nf-nav.searching .nf-search {
+    flex: 1;
+    min-width: 0;
+  }
+  .nf-nav .nf-search.open input {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+  }
+  .nf-search input {
+    font-size: 16px; /* smaller text makes iOS zoom the page on focus */
+  }
+  .nf-menu-panel {
+    position: fixed;
+    top: 60px;
+    right: 8px;
+  }
+  .nf-controls {
+    gap: 2px;
+  }
+  .nf-controls .nf-pbtn {
+    padding: 4px;
+  }
+  .nf-controls .nf-pbtn svg {
+    width: 24px;
+    height: 24px;
+  }
+  .nf-time {
+    font-size: 12px;
+    margin: 0 auto 0 4px;
+  }
+}
+@media (max-width: 900px) {
+  /* no title in the bar here: keep the right-hand buttons at the right edge */
+  .nf-time {
+    margin-right: auto;
+  }
+}

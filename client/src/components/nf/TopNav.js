@@ -3,7 +3,8 @@ import { NavLink, Link, withRouter } from "react-router-dom";
 import api, { getMe } from "api";
 import { UserConsumer } from "store";
 import { Search, Close, User, Settings, LogOut, Menu, Tv } from "./Icons";
-import { avatarSrc } from "../../config";import { isTv, setTv } from "../../tv";
+import { avatarSrc } from "../../config";
+import { isTv, setTv } from "../../tv";
 
 
 const TopNav = ({ history, location }) => {
@@ -89,7 +90,7 @@ const TopNav = ({ history, location }) => {
   };
 
   return (
-    <nav className={`nf-nav${solid ? " solid" : ""}`}>
+    <nav className={`nf-nav${solid ? " solid" : ""}${open ? " searching" : ""}`}>
       <button className="nf-burger" onClick={() => setBurger(!burger)} aria-label="Menu">
         <Menu />
       </button>
