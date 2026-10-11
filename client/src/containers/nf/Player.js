@@ -3,8 +3,15 @@ import { withRouter } from "react-router-dom";
 import api, { SERVER, getTitle, getSources, raceSources, recallPick, pickKey, prepareSources, streamInfo, streamStatus, streamSubs, libraryRecord, getMe, titlePath, watchPath } from "api";
 import { SourceList } from "./TitlePage";
 import * as I from "components/nf/Icons";
-// browsers that play HLS themselves (Safari, all iOS browsers)
-const NATIVE_HLS = typeof document !== "undefined" && document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
+// HLS only for Apple's WebKit (Safari, every iOS browser), which can't play our endless MP4 stream.
+// Recent Chrome (desktop, Android, Fire TV Silk) also says it plays HLS, but the MP4 stream works
+// better there, so don't go by canPlayType alone.
+const APPLE_WEBKIT =
+  typeof navigator !== "undefined" &&
+  (/iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ||
+    (/Safari\//.test(navigator.userAgent) && !/Chrome|Chromium|Edg|OPR|Android|Silk/.test(navigator.userAgent)));
+const NATIVE_HLS = APPLE_WEBKIT && document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
 
 
 const fmt = (s) => {
