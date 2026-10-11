@@ -2012,3 +2012,20 @@ html.tv .nf-row-arrow {
     margin-right: auto;
   }
 }
+
+/* row scroll arrows: always visible where there's no real mouse hover (TVs, touch) */
+html.tv .nf-row-arrow {
+  opacity: 1;
+  background: rgba(11, 11, 15, 0.45);
+}
+@media (hover: none) {
+  .nf-row-arrow {
+    opacity: 1;
+  }
+}
+/* keyboard / remote focus is always visible */
+.nf-card:focus-visible,
+.nf-episode:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}

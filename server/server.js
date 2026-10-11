@@ -89,6 +89,17 @@ app.use(
   })
 ); //
 app.use(morgan("dev")); //
+// note each device's browser once, so we can tell what a TV or phone identifies itself as
+const seenClients = new Set();
+app.use((req, res, next) => {
+  const ua = req.headers["user-agent"] || "";
+  const id = `${req.ip} ${ua}`;
+  if (ua && !seenClients.has(id) && seenClients.size < 500) {
+    seenClients.add(id);
+    console.log(`Client ${req.ip}: ${ua}`);
+  }
+  next();
+});
 app.use(bodyParser.json({ limit: "15mb" })); //
 app.use(bodyParser.urlencoded({ extended: true, limit: "15mb" })); //
 app.use(fileUpload()); //

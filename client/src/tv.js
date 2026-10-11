@@ -46,7 +46,14 @@ const move = (dir) => {
   const all = Array.from(document.querySelectorAll(FOCUSABLE)).filter(usable);
   const cur = document.activeElement && document.activeElement !== document.body && usable(document.activeElement) ? document.activeElement : null;
   let target = null;
-  if (!cur) target = all[0];
+  if (!cur) {
+    // start on the first card that's on screen rather than the logo
+    const h = window.innerHeight;
+    target = all.find((el) => {
+      const r = el.getBoundingClientRect();
+      return el.closest(".nf-row-track") && r.top >= 0 && r.bottom <= h * 1.5;
+    }) || all[0];
+  }
   else {
     const a = cur.getBoundingClientRect();
     const ax = a.left + a.width / 2;
@@ -69,28 +76,57 @@ const move = (dir) => {
     });
   }
   if (target) {
-    target.focus({ preventScroll: true });
-    target.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    navigating = true;
+    try {
+      target.focus({ preventScroll: true });
+    } catch (e) {
+      target.focus();
+    }
+    reveal(target);
   }
+};
+
+// bring an element into view: its row scrolls sideways, the page vertically (done by hand,
+// since scrollIntoView options are missing or unreliable in older TV browsers)
+const reveal = (el) => {
+  const track = el.closest(".nf-row-track");
+  if (track) {
+    const t = track.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const margin = t.width * 0.08;
+    if (r.left < t.left + margin) track.scrollLeft -= t.left + margin - r.left;
+    else if (r.right > t.right - margin) track.scrollLeft += r.right - (t.right - margin);
+  }
+  const r = el.getBoundingClientRect();
+  const zoom = parseFloat(document.documentElement.style.zoom) || 1;
+  const vh = window.innerHeight / zoom;
+  const top = 90; // clear of the fixed header
+  if (r.top < top) window.scrollBy(0, r.top - top);
+  else if (r.bottom > vh - 40) window.scrollBy(0, r.bottom - (vh - 40) + 20);
 };
 
 const KEYS = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
 const BACK_CODES = [10009, 461]; // Samsung Tizen, LG webOS remote "Back"
 
+// Remote/keyboard navigation works everywhere (some TV browsers aren't recognised as TVs):
+// left/right always move between items; up/down do too in TV mode, or once arrow-key
+// navigation has started (otherwise they scroll the page as usual).
+let navigating = false;
 const onKey = (e) => {
-  if (!isTv()) return;
+  const tv = isTv();
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "");
   const inPlayer = /^\/watch\//.test(window.location.pathname);
-  if (BACK_CODES.includes(e.keyCode) || (e.key === "Backspace" && !typing)) {
+  if (BACK_CODES.includes(e.keyCode) || (tv && e.key === "Backspace" && !typing)) {
     e.preventDefault();
     window.history.back();
     return;
   }
   if (inPlayer) return; // the player handles its own keys (seek, play/pause, volume)
-  if (KEYS[e.key] && !(typing && (e.key === "ArrowLeft" || e.key === "ArrowRight"))) {
+  const sideways = e.key === "ArrowLeft" || e.key === "ArrowRight";
+  if (KEYS[e.key] && !typing && (tv || sideways || navigating) && !e.altKey && !e.ctrlKey && !e.metaKey) {
     e.preventDefault();
     move(KEYS[e.key]);
-  } else if (e.key === "Enter" && !typing && !e.defaultPrevented) {
+  } else if (e.key === "Enter" && !typing && !e.defaultPrevented && (tv || navigating)) {
     const el = document.activeElement;
     // native buttons/links already activate on Enter; clickable divs need a nudge
     if (el && el !== document.body && !/^(A|BUTTON)$/.test(el.tagName)) {
@@ -102,6 +138,7 @@ const onKey = (e) => {
 
 export const initTv = () => {
   apply();
+  window.addEventListener("mousedown", () => (navigating = false));
   window.addEventListener("resize", apply);
   window.addEventListener("keydown", onKey);
 };

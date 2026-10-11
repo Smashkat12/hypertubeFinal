@@ -18,7 +18,14 @@ const Row = ({ title, items, link, wide, getProgress, hideKind }) => {
 
   const page = (dir) => {
     const el = track.current;
-    el.scrollBy({ left: dir * (el.clientWidth - 120), behavior: "smooth" });
+    const by = dir * (el.clientWidth - 120);
+    // older TV browsers lack scrollBy({...}); the track's CSS already scrolls smoothly
+    if (el.scrollBy) {
+      try {
+        return el.scrollBy({ left: by, behavior: "smooth" });
+      } catch (e) {}
+    }
+    el.scrollLeft += by;
   };
 
   if (!items || !items.length) return null;
