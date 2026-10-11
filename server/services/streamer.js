@@ -453,7 +453,11 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
   const args = ["-hide_banner", "-loglevel", "error", "-nostdin"];
   // GPU decode where the card supports the codec (falls back to software decode otherwise)
   if (gpu && !copyVideo) args.push("-hwaccel", "cuda");
-  if (t > 0) args.push("-ss", t.toFixed(3));
+  // For copied video, ffmpeg seeks ~0.13 s early when a stream has B-frames (its DTS heuristic),
+  // which lands on the keyframe *before* t and starts the video seconds ahead of the audio. Aim
+  // just past the keyframe and keep the audio from where the demuxer landed, so both start there.
+  if (t > 0 && copyVideo) args.push("-noaccurate_seek", "-ss", (t + 0.14).toFixed(3));
+  else if (t > 0) args.push("-ss", t.toFixed(3));
   args.push("-i", rawUrl(hash, index), "-map", "0:v:0");
   if (d.audio.length) args.push("-map", `0:a:${Math.min(audio, d.audio.length - 1)}`);
   if (copyVideo) args.push("-c:v", "copy");
