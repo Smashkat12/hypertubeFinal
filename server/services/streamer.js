@@ -398,14 +398,14 @@ const describe = (info, fileName) => {
 
 // ---- transcoding sessions ----
 const sessions = {}; // sid -> { proc, subs, startedAt, offset, done }
-const killSession = (sid) => {
+const killSession = (sid, keepDir = false) => {
   const s = sessions[sid];
   if (s && s.proc && !s.done) {
     try {
       s.proc.kill("SIGKILL");
     } catch (e) {}
   }
-  if (s && s.hls) fs.rm(s.hls.dir, { recursive: true, force: true }, () => {});
+  if (s && s.hls && !keepDir) fs.rmSync(s.hls.dir, { recursive: true, force: true });
 };
 setInterval(() => {
   const now = Date.now();
@@ -432,6 +432,7 @@ const keyframeAt = (hash, index, t) =>
   });
 
 const HLS_ROOT = path.join(os.tmpdir(), "hypertube-hls");
+const HLS_SEG = 4; // seconds per HLS chunk
 const safeSid = (sid) => String(sid || "").replace(/[^a-z0-9]/gi, "").slice(0, 64) || "default";
 
 // `hls`: write 4s MPEG-TS chunks + an event playlist to a per-session folder instead of one
@@ -441,7 +442,9 @@ const safeSid = (sid) => String(sid || "").replace(/[^a-z0-9]/gi, "").slice(0, 6
 const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync = 0, hls = null, saver = false }) => {
   const d = describe(info, "x.mkv");
   const v = d.video || {};
-  const copyVideo = !saver && v.codec === "h264" && (v.pix_fmt || "yuv420p") === "yuv420p" && (v.height || 0) <= 1080;
+  // HLS always re-encodes: forced keyframes give exact 4 s chunks, so the whole playlist can be
+  // published up front (see streamRouter) and chunk N always holds N*4..N*4+4 s
+  const copyVideo = !saver && !hls && v.codec === "h264" && (v.pix_fmt || "yuv420p") === "yuv420p" && (v.height || 0) <= 1080;
   // When video is stream-copied it can only start on a keyframe, while re-encoded audio would
   // start exactly at t, leaving them out of sync. Start both at that keyframe instead and
   // report the real start so the player's clock and subtitles line up.
@@ -464,7 +467,9 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
     else if (saver) args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "24", "-maxrate", "2.5M", "-bufsize", "5M");
     else if (gpu) args.push("-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", "23", "-b:v", "0", "-maxrate", "10M", "-bufsize", "20M");
     else args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "21");
-    args.push("-g", "48", "-bf", "0");
+    // nvenc only honours forced keyframes as chunk boundaries when they're IDR frames
+    if (hls) args.push("-force_key_frames", `expr:gte(t,n_forced*${HLS_SEG})`, ...(gpu ? ["-forced-idr", "1"] : ["-sc_threshold", "0"]), "-bf", "0");
+    else args.push("-g", "48", "-bf", "0");
   }
   // A copied H.264 stream with B-frames starts presenting `has_b_frames` frames after its
   // decode start, and the MP4 muxer shifts video (not audio) by that much. Delay the audio
@@ -486,11 +491,15 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
   const audioFilter =
     delayMs > 0 ? `adelay=${delayMs}:all=1` : delayMs < 0 ? `atrim=start=${(-delayMs / 1000).toFixed(3)},asetpts=PTS-STARTPTS` : "anull";
   args.push("-c:a", "aac", "-ac", "2", "-b:a", saver ? "128k" : "192k", "-af", audioFilter);
-  args.push("-avoid_negative_ts", "make_zero", "-muxdelay", "0");
+  // (make_zero would also undo the -output_ts_offset an HLS restart relies on)
+  args.push("-avoid_negative_ts", hls ? "make_non_negative" : "make_zero", "-muxdelay", "0");
+  // restarting further into the same HLS timeline (hls.start > 0): keep earlier chunks, number new
+  // ones from there and keep their timestamps on the original timeline
+  const tsOffset = hls && hls.start ? ["-output_ts_offset", String(hls.start * HLS_SEG)] : [];
   if (hls) {
-    fs.rmSync(hls.dir, { recursive: true, force: true });
+    if (!hls.start) fs.rmSync(hls.dir, { recursive: true, force: true });
     fs.mkdirSync(hls.dir, { recursive: true });
-    args.push("-f", "hls", "-hls_time", "4", "-hls_list_size", "0", "-hls_playlist_type", "event");
+    args.push(...tsOffset, "-f", "hls", "-hls_time", String(HLS_SEG), "-hls_list_size", "0", "-start_number", String(hls.start || 0));
     args.push("-hls_flags", "independent_segments+temp_file", "-hls_segment_filename", path.join(hls.dir, "seg%05d.ts"));
     args.push(path.join(hls.dir, "index.m3u8"));
   } else {
@@ -498,12 +507,14 @@ const transcode = async (req, res, { hash, index, info, t, audio, sub, sid, sync
   }
   const subStream = sub >= 0 ? d.subtitles[sub] : null;
   if (subStream && subStream.text) {
-    args.push("-map", `0:s:${sub}`, "-c:s", "webvtt", "-f", "webvtt", "-flush_packets", "1", "pipe:3");
+    args.push("-map", `0:s:${sub}`, ...tsOffset, "-c:s", "webvtt", "-f", "webvtt", "-flush_packets", "1", "pipe:3");
   }
 
-  killSession(sid);
+  killSession(sid, !!(hls && hls.start));
   const proc = spawn(FFMPEG, args, { stdio: ["ignore", "pipe", "pipe", "pipe"] });
-  const session = (sessions[sid] = { proc, subs: "", offset: t, requested, touched: Date.now(), done: false, hls });
+  // an HLS restart keeps the playlist's origin as the session offset (chunk times are relative to it)
+  const origin = hls && hls.start ? hls.base : t;
+  const session = (sessions[sid] = { proc, subs: "", offset: origin, requested: hls && hls.start ? origin : requested, touched: Date.now(), done: false, hls });
   proc.stdio[3].on("data", (chunk) => (session.subs += chunk.toString()));
   let errText = "";
   proc.stderr.on("data", (c) => (errText = (errText + c.toString()).slice(-2000)));
@@ -761,6 +772,7 @@ module.exports = {
   transcode,
   sessions,
   HLS_ROOT,
+  HLS_SEG,
   safeSid,
   TORRENT_DIR,
 };

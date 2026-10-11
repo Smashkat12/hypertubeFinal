@@ -119,6 +119,11 @@ exports.router = (() => {
     sync: parseInt(req.query.sync, 10) || 0,
     saver: req.query.q === "saver",
   });
+  // The playlist lists every chunk up front as a finished video (VOD). An "event" playlist that
+  // grew as chunks were made let iOS treat it as live and jump to the newest chunk whenever it
+  // re-read it, skipping minutes at a time. Chunks are exactly HLS_SEG seconds (forced keyframes).
+  const SEG = streamer.HLS_SEG;
+  const segPath = (session, n) => path.join(session.hls.dir, `seg${String(n).padStart(5, "0")}.ts`);
   router.get("/hls/:hash/:index/index.m3u8", allowMedia, async (req, res) => {
     try {
       const hash = streamer.normHash(req.params.hash);
@@ -127,41 +132,71 @@ exports.router = (() => {
       const p = hlsParams(req);
       const key = JSON.stringify([hash, index, p]);
       let session = streamer.sessions[sid];
-      if (!session || !session.hls || session.hls.key !== key || (session.done && !fs.existsSync(path.join(session.hls.dir, "index.m3u8")))) {
+      if (!session || !session.hls || session.hls.key !== key) {
         const file = await streamer.openFile(hash, index, { keep: true });
         if (!file) return res.sendStatus(404);
         const info = await streamer.probe(hash, index);
+        const duration = parseFloat((info.format && info.format.duration) || 0);
+        if (!duration) return res.sendStatus(500);
         const dir = path.join(streamer.HLS_ROOT, sid);
-        session = await streamer.transcode(req, res, { hash, index, info, ...p, sid, hls: { dir, key } });
+        const hls = { dir, key, start: 0, base: p.t, duration, args: { hash, index, info, ...p, sid } };
+        session = await streamer.transcode(req, res, { ...hls.args, hls });
       }
       session.touched = Date.now();
-      // wait for the first chunk before answering
-      const playlist = path.join(session.hls.dir, "index.m3u8");
-      for (let i = 0; i < 120; i++) {
-        if (fs.existsSync(playlist) && fs.readFileSync(playlist, "utf8").includes("#EXTINF")) break;
-        if (session.done) break;
+      // answer once the first chunk exists, so playback can start right away
+      for (let i = 0; i < 120 && !fs.existsSync(segPath(session, session.hls.start)) && !session.done; i++)
         await new Promise((r) => setTimeout(r, 250));
-      }
-      if (!fs.existsSync(playlist)) return res.sendStatus(504);
       const qs = `sid=${sid}&token=${encodeURIComponent(req.query.token || "")}`;
-      const body = fs
-        .readFileSync(playlist, "utf8")
-        .replace("#EXTM3U\n", "#EXTM3U\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n") // start at the beginning, not the live edge
-        .split("\n")
-        .map((l) => (l && !l.startsWith("#") ? `${l}?${qs}` : l))
-        .join("\n");
-      res.set({ "Content-Type": "application/vnd.apple.mpegurl", "Cache-Control": "no-store", "X-Stream-Offset": session.offset.toFixed(3) });
-      res.send(body);
+      const total = Math.max(0.1, session.hls.duration - session.hls.base);
+      const count = Math.ceil(total / SEG);
+      const lines = ["#EXTM3U", "#EXT-X-VERSION:6", `#EXT-X-TARGETDURATION:${SEG}`, "#EXT-X-MEDIA-SEQUENCE:0", "#EXT-X-PLAYLIST-TYPE:VOD", "#EXT-X-INDEPENDENT-SEGMENTS"];
+      for (let n = 0; n < count; n++) {
+        lines.push(`#EXTINF:${Math.min(SEG, total - n * SEG).toFixed(3)},`, `seg${String(n).padStart(5, "0")}.ts?${qs}`);
+      }
+      lines.push("#EXT-X-ENDLIST", "");
+      res.set({ "Content-Type": "application/vnd.apple.mpegurl", "Cache-Control": "no-store", "X-Stream-Offset": session.hls.base.toFixed(3) });
+      res.send(lines.join("\n"));
     } catch (e) {
       if (!res.headersSent) res.sendStatus(500);
     }
   });
-  router.get("/hls/:hash/:index/:seg", allowMedia, (req, res) => {
-    const session = streamer.sessions[streamer.safeSid(req.query.sid)];
-    if (!session || !session.hls || !/^seg\d{5}\.ts$/.test(req.params.seg)) return res.sendStatus(404);
+  // newest chunk the current encoder run has finished
+  const newestChunk = (session) => {
+    let newest = session.hls.start - 1;
+    try {
+      fs.readdirSync(session.hls.dir).forEach((f) => {
+        const m = /^seg(\d{5})\.ts$/.exec(f);
+        if (m && +m[1] >= session.hls.start && +m[1] > newest) newest = +m[1];
+      });
+    } catch (e) {}
+    return newest;
+  };
+  router.get("/hls/:hash/:index/:seg", allowMedia, async (req, res) => {
+    const sid = streamer.safeSid(req.query.sid);
+    let session = streamer.sessions[sid];
+    const m = /^seg(\d{5})\.ts$/.exec(req.params.seg);
+    if (!session || !session.hls || !m) return res.sendStatus(404);
+    const n = +m[1];
+    const file = () => segPath(streamer.sessions[sid] || session, n);
     session.touched = Date.now();
+    if (!fs.existsSync(file())) {
+      // a jump outside what the encoder will reach soon: restart it at that chunk
+      const newest = newestChunk(session);
+      if (n < session.hls.start || n > newest + 8 || (session.done && n > newest)) {
+        if (n * SEG >= session.hls.duration - session.hls.base) return res.sendStatus(404);
+        const hls = { ...session.hls, start: n };
+        session = await streamer.transcode(req, res, { ...hls.args, t: hls.base + n * SEG, hls });
+      }
+      for (let i = 0; i < 160 && !fs.existsSync(file()); i++) {
+        const s = streamer.sessions[sid];
+        if (!s || (s.done && !fs.existsSync(file()))) break;
+        s.touched = Date.now();
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      if (!fs.existsSync(file())) return res.sendStatus(404);
+    }
     res.set({ "Content-Type": "video/mp2t", "Cache-Control": "no-store" });
-    res.sendFile(path.join(session.hls.dir, req.params.seg), (err) => err && !res.headersSent && res.sendStatus(404));
+    res.sendFile(file(), (err) => err && !res.headersSent && res.sendStatus(404));
   });
 
   // WebVTT extracted so far for a transcoding session (the player polls this)
