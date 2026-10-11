@@ -66,7 +66,7 @@ module.exports = function (passport) {
               lastname: profile.name.familyName,
               language: "en",
               username: profile.name.givenName,
-              email: `${profile.username}@gmail.com`,
+              email: emails[0] || null,
               cover: "cinema",
               avatar: profile.photos[0].value,
             });
