@@ -92,7 +92,8 @@ app.use(morgan("dev")); //
 // note each device's browser once, so we can tell what a TV or phone identifies itself as
 const seenClients = new Set();
 app.use((req, res, next) => {
-  const ua = req.headers["user-agent"] || "";
+  // control characters stripped so a crafted header can't forge log lines or send terminal escapes
+  const ua = (req.headers["user-agent"] || "").replace(/[\x00-\x1f\x7f]/g, "?").slice(0, 300);
   const id = `${req.ip} ${ua}`;
   if (ua && !seenClients.has(id) && seenClients.size < 500) {
     seenClients.add(id);
