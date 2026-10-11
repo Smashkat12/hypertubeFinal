@@ -8,6 +8,23 @@ const cron = require("./services/cronjob");
 const app = express();
 // behind tailscale serve: honour X-Forwarded-Proto so secure cookies + OAuth callbacks use https
 app.set("trust proxy", "loopback");
+
+// Visits over plain http to this machine's Tailscale address (100.x IP, short MagicDNS name, or
+// the ts.net name) go to the https address instead: Google/GitHub only accept the https callbacks,
+// and that's also the only address with a valid certificate. TAILSCALE_URL comes from .env.
+const toTailscaleHttps = (port) => {
+  const ts = process.env.TAILSCALE_URL && new URL(process.env.TAILSCALE_URL);
+  if (!ts) return (req, res, next) => next();
+  const short = ts.hostname.split(".")[0];
+  return (req, res, next) => {
+    const host = (req.headers.host || "").replace(/:\d+$/, "");
+    const direct = !/^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress || "");
+    const tailnet = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/.test(host) || host === short || host === ts.hostname;
+    if (direct && tailnet) return res.redirect(302, `${ts.origin}${port ? `:${port}` : ""}${req.originalUrl}`);
+    next();
+  };
+};
+app.use(toTailscaleHttps(8443));
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 /* const cookieParser = require("cookie-parser"); */
@@ -186,6 +203,7 @@ require("./services/autoDownload").start();
 // working (LAN :3001, tailscale serve 443 -> :3001). Hashed assets cache for a year; index.html never.
 if (process.env.WEB_PORT) {
   const web = express();
+  web.use(toTailscaleHttps());
   web.use(require("compression")());
   const BUILD = path.resolve(__dirname, "../client/build");
   web.use(
