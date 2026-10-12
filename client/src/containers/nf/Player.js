@@ -442,6 +442,11 @@ const Player = ({ match, location, history }) => {
       .then((text) => setExt((cur) => (cur && cur.id === t.id ? { id: t.id, cues: parseVtt(text) } : cur)))
       .catch(() => setExt((cur) => (cur && cur.id === t.id ? null : cur)));
   };
+  // opening the subtitles menu looks them up right away (one less click on the TV remote)
+  useEffect(() => {
+    if (panel === "tracks" && extList === null && item && item.imdb && kind !== "anime") searchExt();
+    // eslint-disable-next-line
+  }, [panel]);
   // subtitles turned on before and this file has none built in: fetch the best English match
   const autoExt = useRef(null);
   useEffect(() => {
@@ -802,6 +807,64 @@ const Player = ({ match, location, history }) => {
 
       {panel === "tracks" && info && (
         <div className="nf-popover" onClick={(e) => e.stopPropagation()}>
+          <h4>Subtitles</h4>
+          <button
+            className={sub < 0 && !ext ? "on" : ""}
+            onClick={() => {
+              setSub(-1);
+              setExt(null);
+              localStorage.setItem("nf-subs", "off");
+            }}
+          >
+            Off
+          </button>
+          {info.subtitles
+            .filter((t) => t.text)
+            .map((t) => (
+              <button
+                key={t.index}
+                className={sub === t.index ? "on" : ""}
+                onClick={() => {
+                  setExt(null);
+                  if (sub === t.index) return;
+                  setSub(t.index);
+                  localStorage.setItem("nf-subs", "on");
+                  if (info.direct) setInfo({ ...info, direct: false });
+                  setOffset(position);
+                }}
+              >
+                {trackName(t)}
+                {t.forced ? " (signs)" : ""}
+              </button>
+            ))}
+          {item && item.imdb && kind !== "anime" && (
+            <>
+              <h4>Online subtitles</h4>
+              {extList === null && <button onClick={searchExt}>Search OpenSubtitles…</button>}
+              {extList === "loading" && <button disabled>Searching…</button>}
+              {Array.isArray(extList) && extList.length === 0 && <button disabled>None found</button>}
+              {Array.isArray(extList) &&
+                extList.slice(0, 6).map((t) => (
+                  <button key={t.id} className={ext && ext.id === t.id ? "on" : ""} onClick={() => pickExt(t)} title={t.release}>
+                    {t.label}
+                    {ext && ext.id === t.id && ext.loading ? " (loading…)" : ""}
+                    <small style={{ display: "block", opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.release}</small>
+                  </button>
+                ))}
+              {ext && (
+                <>
+                  <h4>Subtitle timing</h4>
+                  <div className="nf-sync">
+                    <button onClick={() => setSubDelay(+(subDelay - 0.5).toFixed(1))}>−0.5 s</button>
+                    <span className={subDelay ? "on" : ""}>{subDelay > 0 ? `+${subDelay}` : subDelay} s</span>
+                    <button onClick={() => setSubDelay(+(subDelay + 0.5).toFixed(1))}>+0.5 s</button>
+                  </div>
+                  <p className="nf-sync-hint">Text too early → press <b>+</b> · text late → press <b>−</b></p>
+                </>
+              )}
+            </>
+          )}
+          {info.subtitles.length === 0 && !(item && item.imdb && kind !== "anime") && <button disabled>None in this file — try another source</button>}
           <h4>Quality</h4>
           <button className={!saver ? "on" : ""} onClick={() => changeSaver(false)}>
             Original{info.video && info.video.width ? ` (${info.video.width >= 3200 ? "4K" : info.video.width >= 1800 ? "1080p" : info.video.width >= 1200 ? "720p" : "SD"})` : ""}
@@ -847,64 +910,6 @@ const Player = ({ match, location, history }) => {
               </button>
             )}
           </p>
-          <h4>Subtitles</h4>
-          <button
-            className={sub < 0 && !ext ? "on" : ""}
-            onClick={() => {
-              setSub(-1);
-              setExt(null);
-              localStorage.setItem("nf-subs", "off");
-            }}
-          >
-            Off
-          </button>
-          {info.subtitles
-            .filter((t) => t.text)
-            .map((t) => (
-              <button
-                key={t.index}
-                className={sub === t.index ? "on" : ""}
-                onClick={() => {
-                  setExt(null);
-                  if (sub === t.index) return;
-                  setSub(t.index);
-                  localStorage.setItem("nf-subs", "on");
-                  if (info.direct) setInfo({ ...info, direct: false });
-                  setOffset(position);
-                }}
-              >
-                {trackName(t)}
-                {t.forced ? " (signs)" : ""}
-              </button>
-            ))}
-          {item && item.imdb && kind !== "anime" && (
-            <>
-              <h4>Online subtitles</h4>
-              {extList === null && <button onClick={searchExt}>Search OpenSubtitles…</button>}
-              {extList === "loading" && <button disabled>Searching…</button>}
-              {Array.isArray(extList) && extList.length === 0 && <button disabled>None found</button>}
-              {Array.isArray(extList) &&
-                extList.slice(0, 12).map((t) => (
-                  <button key={t.id} className={ext && ext.id === t.id ? "on" : ""} onClick={() => pickExt(t)} title={t.release}>
-                    {t.label}
-                    {ext && ext.id === t.id && ext.loading ? " (loading…)" : ""}
-                    <small style={{ display: "block", opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.release}</small>
-                  </button>
-                ))}
-              {ext && (
-                <>
-                  <h4>Subtitle timing</h4>
-                  <div className="nf-sync">
-                    <button onClick={() => setSubDelay(+(subDelay - 0.5).toFixed(1))}>−0.5 s</button>
-                    <span className={subDelay ? "on" : ""}>{subDelay > 0 ? `+${subDelay}` : subDelay} s</span>
-                    <button onClick={() => setSubDelay(+(subDelay + 0.5).toFixed(1))}>+0.5 s</button>
-                  </div>
-                  <p className="nf-sync-hint">Text too early → press <b>+</b> · text late → press <b>−</b></p>
-                </>
-              )}
-            </>
-          )}
-          {info.subtitles.length === 0 && !(item && item.imdb && kind !== "anime") && <button disabled>None in this file — try another source</button>}
         </div>
       )}
 
