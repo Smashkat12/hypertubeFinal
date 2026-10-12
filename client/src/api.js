@@ -61,6 +61,8 @@ export const deleteDownload = (params) => api.delete("/stream/downloads", { para
 export const cleanupDownloads = () => api.post("/stream/downloads/cleanup").then((r) => r.data);
 export const checkNewEpisodes = () => api.post("/stream/downloads/check").then((r) => r.data);
 export const streamStatus = (hash) => api.get(`/stream/status/${hash}`).then((r) => r.data);
+export const findSubtitles = (q) => api.get(`/stream/extsubs`, { params: q }).then((r) => r.data);
+export const getSubtitle = (id) => api.get(`/stream/extsub/${id}`, { responseType: "text" }).then((r) => r.data);
 export const streamSubs = (sid) => api.get(`/stream/subs/${sid}`).then((r) => r.data);
 
 export const getMe = () => api.get("/users/id").then((r) => (r.data.success ? r.data.user[0] : null));

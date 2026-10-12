@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { withRouter } from "react-router-dom";
-import api, { SERVER, getTitle, getSources, raceSources, recallPick, pickKey, prepareSources, streamInfo, streamStatus, streamSubs, libraryRecord, getMe, titlePath, watchPath } from "api";
+import api, { SERVER, getTitle, getSources, raceSources, recallPick, pickKey, prepareSources, streamInfo, streamStatus, streamSubs, findSubtitles, getSubtitle, libraryRecord, getMe, titlePath, watchPath } from "api";
 import { SourceList } from "./TitlePage";
 import * as I from "components/nf/Icons";
 // HLS only for Apple's WebKit (Safari, every iOS browser), which can't play our endless MP4 stream.
@@ -79,6 +79,10 @@ const Player = ({ match, location, history }) => {
   const syncKey = `nf-sync:${kind}:${id}`;
   const [sync, setSyncState] = useState(() => parseInt(localStorage.getItem(`nf-sync:${kind}:${id}`) || "0", 10) || 0);
   const [cues, setCues] = useState([]);
+  // downloaded subtitles (for files without built-in ones), their list and a timing nudge
+  const [ext, setExt] = useState(null); // { id, cues }
+  const [extList, setExtList] = useState(null); // null | "loading" | [] of { id, label, release }
+  const [subDelay, setSubDelay] = useState(0); // seconds, positive = later
   const [now, setNow] = useState(0);
   const [buffered, setBuffered] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -415,6 +419,47 @@ const Player = ({ match, location, history }) => {
     };
   }, []);
 
+  // ----- downloadable subtitles -----
+  const searchExt = useCallback(() => {
+    if (!item || !item.imdb || !info) return Promise.resolve([]);
+    setExtList("loading");
+    return findSubtitles({ imdb: item.imdb, season: kind === "series" ? season : undefined, episode: kind === "series" ? episode : undefined, name: info.name })
+      .then((d) => {
+        const l = (d && d.subtitles) || [];
+        setExtList(l);
+        return l;
+      })
+      .catch(() => {
+        setExtList([]);
+        return [];
+      });
+  }, [item, info, kind, season, episode]);
+  const pickExt = (t) => {
+    setSub(-1);
+    setExt({ id: t.id, cues: [], loading: true });
+    localStorage.setItem("nf-subs", "on");
+    getSubtitle(t.id)
+      .then((text) => setExt((cur) => (cur && cur.id === t.id ? { id: t.id, cues: parseVtt(text) } : cur)))
+      .catch(() => setExt((cur) => (cur && cur.id === t.id ? null : cur)));
+  };
+  // subtitles turned on before and this file has none built in: fetch the best English match
+  const autoExt = useRef(null);
+  useEffect(() => {
+    if (phase !== "ready" || !info || !item || !item.imdb || kind === "anime") return;
+    const key = `${info.hash}:${info.index}`;
+    if (autoExt.current === key) return;
+    autoExt.current = key;
+    setExt(null);
+    setExtList(null);
+    const hasEng = info.subtitles.some((t) => t.text && t.language === "eng" && !t.forced);
+    if (localStorage.getItem("nf-subs") !== "on" || hasEng) return;
+    searchExt().then((l) => {
+      const best = l.filter((t) => t.lang === "eng").sort((a, b) => b.score - a.score)[0];
+      if (best) pickExt(best);
+    });
+    // eslint-disable-next-line
+  }, [phase, info, item]);
+
   // Apple's native fullscreen player can't see our subtitle overlay, so mirror the cues into a
   // real text track and show it only while that player is up.
   const nativeTrack = useRef(null);
@@ -436,17 +481,22 @@ const Player = ({ match, location, history }) => {
     if (!v || !v.addTextTrack || typeof window.VTTCue === "undefined") return;
     if (!nativeTrack.current) nativeTrack.current = { track: v.addTextTrack("subtitles", "Subtitles", "en"), added: 0 };
     const nt = nativeTrack.current;
+    // downloaded cues are in title time; the video element counts from where the stream began
+    const shift = ext ? subDelay - (transcoding ? base : 0) : 0;
+    const list = ext ? ext.cues : cues;
+    const key = ext ? `${ext.id}:${shift}` : "built-in";
     // a new stream (seek, track change) resets the cue list
-    if (cues.length < nt.added || sub < 0) {
+    if (list.length < nt.added || (sub < 0 && !ext) || nt.key !== key) {
       Array.from(nt.track.cues || []).forEach((c) => nt.track.removeCue(c));
       nt.added = 0;
+      nt.key = key;
     }
-    if (sub >= 0) {
-      cues.slice(nt.added).forEach((c) => nt.track.addCue(new window.VTTCue(c.start, c.end, c.text)));
-      nt.added = cues.length;
+    if (sub >= 0 || ext) {
+      list.slice(nt.added).forEach((c) => c.end + shift > 0 && nt.track.addCue(new window.VTTCue(Math.max(0, c.start + shift), c.end + shift, c.text)));
+      nt.added = list.length;
     }
-    nt.track.mode = nativeFs && sub >= 0 ? "showing" : "hidden";
-  }, [cues, sub, nativeFs]);
+    nt.track.mode = nativeFs && (sub >= 0 || ext) ? "showing" : "hidden";
+  }, [cues, sub, ext, subDelay, base, transcoding, nativeFs]);
 
   // on touch screens a tap shows/hides the controls (play/pause is the on-screen button)
   const lastPointer = useRef("mouse");
@@ -503,7 +553,9 @@ const Player = ({ match, location, history }) => {
     // eslint-disable-next-line
   }, [nextCountdown]);
 
-  const cue = cues.find((c) => now >= c.start && now < c.end);
+  const cue = ext
+    ? ext.cues.find((c) => position - subDelay >= c.start && position - subDelay < c.end)
+    : sub >= 0 && cues.find((c) => now >= c.start && now < c.end);
   const heading = item ? item.title : "";
   const sub2 =
     currentEp && kind !== "movie"
@@ -606,7 +658,7 @@ const Player = ({ match, location, history }) => {
         }}
       />
 
-      {sub >= 0 && cue && (
+      {cue && (
         <div className="nf-subtitle">
           <span>{cue.text}</span>
         </div>
@@ -797,9 +849,10 @@ const Player = ({ match, location, history }) => {
           </p>
           <h4>Subtitles</h4>
           <button
-            className={sub < 0 ? "on" : ""}
+            className={sub < 0 && !ext ? "on" : ""}
             onClick={() => {
               setSub(-1);
+              setExt(null);
               localStorage.setItem("nf-subs", "off");
             }}
           >
@@ -812,6 +865,7 @@ const Player = ({ match, location, history }) => {
                 key={t.index}
                 className={sub === t.index ? "on" : ""}
                 onClick={() => {
+                  setExt(null);
                   if (sub === t.index) return;
                   setSub(t.index);
                   localStorage.setItem("nf-subs", "on");
@@ -823,7 +877,34 @@ const Player = ({ match, location, history }) => {
                 {t.forced ? " (signs)" : ""}
               </button>
             ))}
-          {info.subtitles.length === 0 && <button disabled>None in this file — try another source</button>}
+          {item && item.imdb && kind !== "anime" && (
+            <>
+              <h4>Online subtitles</h4>
+              {extList === null && <button onClick={searchExt}>Search OpenSubtitles…</button>}
+              {extList === "loading" && <button disabled>Searching…</button>}
+              {Array.isArray(extList) && extList.length === 0 && <button disabled>None found</button>}
+              {Array.isArray(extList) &&
+                extList.slice(0, 12).map((t) => (
+                  <button key={t.id} className={ext && ext.id === t.id ? "on" : ""} onClick={() => pickExt(t)} title={t.release}>
+                    {t.label}
+                    {ext && ext.id === t.id && ext.loading ? " (loading…)" : ""}
+                    <small style={{ display: "block", opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.release}</small>
+                  </button>
+                ))}
+              {ext && (
+                <>
+                  <h4>Subtitle timing</h4>
+                  <div className="nf-sync">
+                    <button onClick={() => setSubDelay(+(subDelay - 0.5).toFixed(1))}>−0.5 s</button>
+                    <span className={subDelay ? "on" : ""}>{subDelay > 0 ? `+${subDelay}` : subDelay} s</span>
+                    <button onClick={() => setSubDelay(+(subDelay + 0.5).toFixed(1))}>+0.5 s</button>
+                  </div>
+                  <p className="nf-sync-hint">Text too early → press <b>+</b> · text late → press <b>−</b></p>
+                </>
+              )}
+            </>
+          )}
+          {info.subtitles.length === 0 && !(item && item.imdb && kind !== "anime") && <button disabled>None in this file — try another source</button>}
         </div>
       )}
 

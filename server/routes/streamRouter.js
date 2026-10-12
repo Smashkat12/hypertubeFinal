@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("path");
 const streamer = require("../services/streamer");
+const subtitles = require("../services/subtitles");
 
 const crypto = require("crypto");
 const fs = require("fs");
@@ -203,6 +204,23 @@ exports.router = (() => {
   router.get("/subs/:sid", requireAuth, (req, res) => {
     const s = streamer.sessions[req.params.sid];
     res.json({ vtt: s ? s.subs : "", offset: s ? s.offset : 0, requested: s ? s.requested : 0, done: s ? s.done : true });
+  });
+
+  // downloadable subtitles (OpenSubtitles) for files without built-in ones
+  router.get("/extsubs", requireAuth, async (req, res) => {
+    try {
+      const { imdb, season, episode, name } = req.query;
+      res.json({ success: true, subtitles: await subtitles.list({ imdb, season, episode, name }) });
+    } catch (e) {
+      res.json({ success: false, subtitles: [], error: e.message });
+    }
+  });
+  router.get("/extsub/:id", requireAuth, async (req, res) => {
+    try {
+      res.type("text/vtt").send(await subtitles.get(req.params.id));
+    } catch (e) {
+      res.sendStatus(404);
+    }
   });
 
   // the torrent + file that played this title/episode before, if it's still fully on disk
