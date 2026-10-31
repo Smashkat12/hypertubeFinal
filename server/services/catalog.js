@@ -408,6 +408,27 @@ const animeDetail = (id) =>
     };
   });
 
+// every TV season of an anime franchise in order (AniList has one entry per season,
+// linked as PREQUEL/SEQUEL), so the title page and player can move between them
+const SEASON_FORMATS = ["TV", "TV_SHORT", "ONA"];
+const animeSeasons = (id) =>
+  cached(`anilist:seasons:${id}`, 3 * HOUR, async () => {
+    const link = (d, rel) => d.relations.find((r) => r.relation === rel && SEASON_FORMATS.includes(r.format));
+    let first = await animeDetail(id);
+    for (let i = 0; i < 12; i++) {
+      const pre = link(first, "PREQUEL");
+      if (!pre) break;
+      first = await animeDetail(pre.id);
+    }
+    const chain = [first];
+    for (let i = 0; i < 12; i++) {
+      const next = link(chain[chain.length - 1], "SEQUEL");
+      if (!next || chain.some((c) => String(c.id) === String(next.id))) break;
+      chain.push(await animeDetail(next.id));
+    }
+    return chain.map((d, i) => ({ id: String(d.id), number: i + 1, title: d.title, episodes: d.episodes, year: d.year, status: d.status }));
+  });
+
 // total episodes of TV prequels, for groups that number sequels continuously (e.g. "- 25" for S2E01)
 const prequelOffset = async (id, depth = 0) => {
   if (depth > 6) return 0;
@@ -447,7 +468,11 @@ const parseRelease = (name) => {
     episode,
     range,
     batch,
-    dub: /\bdub\b|dual[\s-]?audio|multi[\s-]?audio/i.test(n),
+    // an English dub: "Dual Audio" is Japanese + English; multi-audio only when English is named
+    // (plenty are German/Spanish/Italian dubs)
+    dub:
+      (/\bdub\b|dual[\s-]?audio|multi[\s-]?audio/i.test(n) && /\beng(lish)?\b/i.test(n)) ||
+      (/dual[\s-]?audio|\bdub\b/i.test(n) && !/german|deutsch|\bger\b|\b(es|lat|spa|ita|fre|vf|por)\b|castellano|latino|italian|french/i.test(n)),
   };
 };
 
@@ -527,6 +552,8 @@ const animeSources = async (id, episode) => {
     }
   });
   if (!isMovie) variants.slice(0, 2).forEach((v) => queries.push(`${v} batch`));
+  // releases with an English dub alongside the Japanese track
+  variants.slice(0, 2).forEach((v) => queries.push(`${v} dual audio`));
   const results = (await Promise.all(queries.map((q) => nyaaSearch(q).catch(() => [])))).flat();
 
   const wanted = variants.map(normalize);
@@ -600,6 +627,7 @@ const rankSources = (rawList) => {
       (multiSeason ? -2 : 0) +
       (/\bremux\b/i.test(n) ? -2 : 0) +
       (s.trusted ? 1 : 0) +
+      (s.dub ? 5 : 0) + // English audio available (anime "Dual Audio" releases)
       (/subsplease|erai-raws/i.test(s.group || "") ? 1 : 0)
     );
   };
@@ -721,6 +749,7 @@ const searchAll = async (q) => {
 };
 
 module.exports = {
+  animeSeasons,
   ytsList,
   movieDetail,
   popularSeries,

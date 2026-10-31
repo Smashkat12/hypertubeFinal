@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { withRouter } from "react-router-dom";
-import api, { getTitle, getMe, libraryRecord, watchPath, getSources, prepareSources, getDownloads } from "api";
+import api, { getTitle, getMe, libraryRecord, watchPath, titlePath, getSources, prepareSources, getDownloads } from "api";
 import { matchScore, Scores } from "components/nf/Card";
 import Row from "components/nf/Row";
 import { useMyList } from "components/nf/myList";
@@ -292,6 +292,15 @@ const TitlePage = ({ match, history, location }) => {
           <div className="nf-episodes-head">
             <h2>Episodes</h2>
             <div className="nf-filters">
+              {kind === "anime" && (item.seasonChain || []).length > 1 && (
+                <select className="nf-select" value={String(item.id)} onChange={(e) => history.push(titlePath({ kind: "anime", id: e.target.value }))}>
+                  {item.seasonChain.map((c, i) => (
+                    <option key={c.id} value={c.id}>
+                      {`${i + 1}. ${c.title}${c.episodes ? ` (${c.episodes} ep)` : ""}`}
+                    </option>
+                  ))}
+                </select>
+              )}
               {seasons.length > 1 && (
                 <select
                   className="nf-select"

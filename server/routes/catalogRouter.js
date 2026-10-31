@@ -157,8 +157,9 @@ exports.router = (() => {
     "/:kind/:id",
     handle(async (req) => {
       const { kind, id } = req.params;
-      const item =
+      let item =
         kind === "anime" ? await catalog.animeDetail(id) : kind === "series" ? await catalog.seriesDetail(id) : await catalog.movieDetail(id);
+      if (kind === "anime") item = { ...item, seasonChain: await catalog.animeSeasons(id).catch(() => []) };
       const extra = trending.extraFor(item.imdb);
       if (extra) {
         return {

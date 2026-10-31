@@ -115,7 +115,15 @@ const Player = ({ match, location, history }) => {
   })();
   const epIndex = episodeList.findIndex((e) => e.number === episode && (kind !== "series" || e.season === season));
   const currentEp = epIndex >= 0 ? episodeList[epIndex] : null;
-  const nextEp = epIndex >= 0 && episodeList[epIndex + 1] && episodeList[epIndex + 1].aired !== false ? episodeList[epIndex + 1] : null;
+  // after an anime's last episode, carry on with the next season (a separate AniList entry)
+  const nextSeason = (() => {
+    if (kind !== "anime" || !item || !item.seasonChain || epIndex < 0 || epIndex !== episodeList.length - 1) return null;
+    const i = item.seasonChain.findIndex((c) => c.id === String(id));
+    const n = i >= 0 ? item.seasonChain[i + 1] : null;
+    return n && n.status !== "NOT_YET_RELEASED" ? { id: n.id, season: null, number: 1, title: n.title } : null;
+  })();
+  const nextEp =
+    epIndex >= 0 && episodeList[epIndex + 1] && episodeList[epIndex + 1].aired !== false ? episodeList[epIndex + 1] : nextSeason;
 
   // what's being watched, so the server can remember which torrent/file played it
   const pickParams = { key: pickKey(kind, id, season, episode) };
@@ -223,19 +231,28 @@ const Player = ({ match, location, history }) => {
   };
 
   const start = (d, s) => {
-    const a = d.audio.findIndex((t) => t.language === (kind === "anime" ? "jpn" : "eng"));
+    // anime: English dub when the file has one, unless this device chose Japanese before
+    const animeLang = localStorage.getItem("nf-anime-audio") || "eng";
+    // some releases only say "English"/"Japanese" in the track title
+    const isLang = (t, l) => t.language === l || (t.language === "und" && new RegExp(l === "eng" ? "english|\\beng\\b|dub" : "japanese|\\bjpn?\\b", "i").test(t.title || ""));
+    let a = d.audio.findIndex((t) => isLang(t, kind === "anime" ? animeLang : "eng"));
+    if (a < 0 && kind === "anime") a = d.audio.findIndex((t) => isLang(t, "jpn"));
+    const dubbed = kind === "anime" && d.audio[a] && isLang(d.audio[a], "eng");
     const textSubs = d.subtitles.filter((t) => t.text);
     const eng = textSubs.find((t) => t.language === "eng" && !t.forced && !/sign|song/i.test(t.title)) || textSubs.find((t) => t.language === "eng");
     const forced = textSubs.find((t) => t.forced && t.language === "eng");
     const saved = localStorage.getItem("nf-subs");
     let subIndex = -1;
-    if (kind === "anime" && saved !== "off") subIndex = eng ? eng.index : textSubs[0] ? textSubs[0].index : -1;
+    // dubbed: just the on-screen signs/songs track, unless full subtitles were turned on
+    const signs = forced || textSubs.find((t) => t.forced || /sign/i.test(t.title || ""));
+    if (kind === "anime" && dubbed) subIndex = saved === "on" && eng ? eng.index : signs ? signs.index : -1;
+    else if (kind === "anime" && saved !== "off") subIndex = eng ? eng.index : textSubs[0] ? textSubs[0].index : -1;
     else if (saved === "on" && eng) subIndex = eng.index;
     else if (forced) subIndex = forced.index;
     setAudio(a >= 0 ? a : 0);
     setSub(subIndex);
     // a sync adjustment needs the audio re-timed on the server, so skip direct play
-    const direct = d.direct && !sync && !saver;
+    const direct = d.direct && !sync && !saver && !(a > 0); // direct play only has the first audio track
     setInfo({ ...d, direct, source: s });
     setOffset(direct ? 0 : startAt.current);
     setPhase("ready");
@@ -304,14 +321,15 @@ const Player = ({ match, location, history }) => {
   const prefetched = useRef(null);
   useEffect(() => {
     if (!nextEp || phase !== "ready" || position < 30) return;
-    const nextKey = pickKey(kind, id, nextEp.season, nextEp.number);
+    const nextId = nextEp.id || id;
+    const nextKey = pickKey(kind, nextId, nextEp.season, nextEp.number);
     if (prefetched.current === nextKey) return;
     prefetched.current = nextKey;
-    getSources(kind, id, nextEp.season, nextEp.number)
+    getSources(kind, nextId, nextEp.season, nextEp.number)
       .then((d) => {
         const list = (d && d.sources) || [];
         const pack = source && source.batch ? [{ hash: source.hash }] : [];
-        return prepareSources(kind, id, nextEp.season, nextEp.number, [...pack, ...list.filter((x) => !pack.length || x.hash !== source.hash)], { full: true });
+        return prepareSources(kind, nextId, nextEp.season, nextEp.number, [...pack, ...list.filter((x) => !pack.length || x.hash !== source.hash)], { full: true });
       })
       .catch(() => {});
   }, [nextEp, phase, position, kind, id, source]);
@@ -324,7 +342,7 @@ const Player = ({ match, location, history }) => {
       saveTimer.current = Date.now();
       const percent = Math.round((position / duration) * 100);
       if (percent >= 95) {
-        if (nextEp) {
+        if (nextEp && !nextEp.id) {
           api.post(`/movies/${doc._id}/inprogress`, { ytsId: `${kind}:${id}`, percent: 0, timecode: "0", season: nextEp.season, episode: nextEp.number });
         } else {
           api.post(`/movies/${doc._id}/recents`);
@@ -517,7 +535,7 @@ const Player = ({ match, location, history }) => {
     // eslint-disable-next-line
   }, []);
 
-  const goNext = () => nextEp && history.replace(watchPath(item, nextEp.season, nextEp.number));
+  const goNext = () => nextEp && history.replace(watchPath({ ...item, id: nextEp.id || item.id }, nextEp.season, nextEp.number));
   const leave = () => history.push(item ? titlePath(item) : "/");
 
   useEffect(() => {
@@ -732,7 +750,7 @@ const Player = ({ match, location, history }) => {
             Watch credits
           </button>
           <button className="nf-btn primary small" onClick={goNext}>
-            <I.NextEp size={18} /> Next episode in {nextCountdown}
+            <I.NextEp size={18} /> {nextEp.id ? nextEp.title : "Next episode"} in {nextCountdown}
           </button>
         </div>
       )}
@@ -882,6 +900,7 @@ const Player = ({ match, location, history }) => {
               onClick={() => {
                 if (audio === t.index) return;
                 setAudio(t.index);
+                if (kind === "anime" && ["eng", "jpn"].includes(t.language)) localStorage.setItem("nf-anime-audio", t.language);
                 if (!info.direct) setOffset(position);
               }}
             >
