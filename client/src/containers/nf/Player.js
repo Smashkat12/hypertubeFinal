@@ -395,7 +395,11 @@ const Player = ({ match, location, history }) => {
       return;
     }
     // inside what the browser already has? seek locally; otherwise restart ffmpeg there
-    if (t >= base && v.buffered.length && t - base <= v.buffered.end(v.buffered.length - 1)) v.currentTime = t - base;
+    // (only if the browser says it can seek there: our live MP4 stream has no byte ranges, so a
+    // "buffered" spot it can't seek to makes Chrome re-request the stream and play from its start)
+    const local = t - base;
+    const within = (r) => Array.from({ length: r.length }).some((_, i) => local >= r.start(i) && local <= r.end(i) - 1);
+    if (local >= 0 && within(v.buffered) && within(v.seekable)) v.currentTime = local;
     else {
       setOffset(t);
       setCues([]);
