@@ -574,7 +574,7 @@ const animeSources = async (id, episode) => {
     const ownArc = !!arc; // names this entry's own arc, which identifies the season by itself
     // sequels: a release without a season marker is season 1 unless it uses absolute numbering
     const absolute =
-      offset && ((r.episode !== null && r.episode === ep + offset) || (r.range && r.range[0] <= ep + offset && ep + offset <= r.range[1]));
+      offset && (!r.season || r.season === seasonNum) && (!r.season || r.season === seasonNum) && ((r.episode !== null && r.episode === ep + offset) || (r.range && r.range[0] <= ep + offset && ep + offset <= r.range[1]));
     if (seasonNum > 1 && r.season !== seasonNum && !absolute && !ownArc) return;
     if (seasonNum <= 1 && r.season && r.season > 1) return;
     let match = false;

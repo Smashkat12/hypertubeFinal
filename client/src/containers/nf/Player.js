@@ -46,6 +46,11 @@ const parseVtt = (text) => {
   return cues;
 };
 
+// some releases only say "English"/"Japanese" in the track title
+const isLang = (t, l) => t.language === l || (t.language === "und" && new RegExp(l === "eng" ? "english|\\beng\\b|dub" : "japanese|\\bjpn?\\b", "i").test(t.title || ""));
+// anime: English dub unless this device chose Japanese
+const wantsDub = () => (localStorage.getItem("nf-anime-audio") || "eng") === "eng";
+
 const LANG = { jpn: "Japanese", eng: "English", und: "Unknown", fre: "French", fra: "French", spa: "Spanish", ger: "German", deu: "German", ita: "Italian", por: "Portuguese", rus: "Russian", ara: "Arabic", chi: "Chinese", zho: "Chinese", kor: "Korean" };
 const trackName = (t) => `${LANG[t.language] || t.language.toUpperCase()}${t.title ? ` · ${t.title}` : ""}`;
 
@@ -161,7 +166,8 @@ const Player = ({ match, location, history }) => {
             setStatus("Playing from your library…");
             const d = await streamInfo(recalled.hash, { ...pickParams, file: recalled.index }).catch(() => null);
             if (!alive) return;
-            if (d && d.success) {
+            const dubMissing = kind === "anime" && wantsDub() && d && d.success && !d.audio.some((a) => isLang(a, "eng"));
+            if (d && d.success && !dubMissing) {
               const s = { hash: recalled.hash, name: d.name, local: true };
               setSources([s]);
               setSource(s);
@@ -189,8 +195,9 @@ const Player = ({ match, location, history }) => {
           const peers = (h) => stat(h).peers || 0;
           // already downloaded first, then keep the quality ranking; only push nearly-dead swarms to the back
           const raced = top
-            .map((s, i) => ({ s, i, disk: stat(s.hash).onDisk ? 1 : 0, alive: peers(s.hash) >= 3 ? 1 : 0 }))
-            .sort((a, b) => b.disk - a.disk || b.alive - a.alive || a.i - b.i)
+            .map((s, i) => ({ s, i, dub: kind === "anime" && wantsDub() && s.dub ? 1 : 0, disk: stat(s.hash).onDisk ? 1 : 0, alive: peers(s.hash) >= 3 ? 1 : 0 }))
+            // an English dub (when wanted) beats a Japanese-only copy that happens to be on disk
+            .sort((a, b) => (b.dub && (b.alive || b.disk)) - (a.dub && (a.alive || a.disk)) || b.disk - a.disk || b.alive - a.alive || a.i - b.i)
             .map((x) => ({ ...x.s, livePeers: peers(x.s.hash), local: !!x.disk }));
           ordered = [...raced, ...list.slice(4)];
         }
@@ -233,8 +240,6 @@ const Player = ({ match, location, history }) => {
   const start = (d, s) => {
     // anime: English dub when the file has one, unless this device chose Japanese before
     const animeLang = localStorage.getItem("nf-anime-audio") || "eng";
-    // some releases only say "English"/"Japanese" in the track title
-    const isLang = (t, l) => t.language === l || (t.language === "und" && new RegExp(l === "eng" ? "english|\\beng\\b|dub" : "japanese|\\bjpn?\\b", "i").test(t.title || ""));
     let a = d.audio.findIndex((t) => isLang(t, kind === "anime" ? animeLang : "eng"));
     if (a < 0 && kind === "anime") a = d.audio.findIndex((t) => isLang(t, "jpn"));
     const dubbed = kind === "anime" && d.audio[a] && isLang(d.audio[a], "eng");
@@ -328,11 +333,12 @@ const Player = ({ match, location, history }) => {
     getSources(kind, nextId, nextEp.season, nextEp.number)
       .then((d) => {
         const list = (d && d.sources) || [];
-        const pack = source && source.batch ? [{ hash: source.hash }] : [];
+        const japaneseOnly = kind === "anime" && wantsDub() && info && !info.audio.some((a) => isLang(a, "eng"));
+        const pack = source && source.batch && !japaneseOnly ? [{ hash: source.hash }] : [];
         return prepareSources(kind, nextId, nextEp.season, nextEp.number, [...pack, ...list.filter((x) => !pack.length || x.hash !== source.hash)], { full: true });
       })
       .catch(() => {});
-  }, [nextEp, phase, position, kind, id, source]);
+  }, [nextEp, phase, position, kind, id, source, info]);
 
   // ----- progress -----
   const saveProgress = useCallback(
