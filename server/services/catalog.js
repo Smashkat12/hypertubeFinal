@@ -439,6 +439,35 @@ const prequelOffset = async (id, depth = 0) => {
   return (p.episodes || 0) + (await prequelOffset(pre.id, depth + 1));
 };
 
+// "Season 3 Part 2" is its own AniList entry; which part, and how many episodes the earlier
+// parts of the same season had (dub groups number Part 2 on from Part 1: S03E13...)
+const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4 };
+const partNum = (text) => {
+  const m = /\bpart\s?(\d|i{1,3}|iv)\b/i.exec(text || "");
+  return m ? ROMAN[m[1].toLowerCase()] || +m[1] : null;
+};
+const seasonOf = (d) => {
+  for (const t of d.titles) {
+    const m = /(\d+)(?:st|nd|rd|th) Season|Season (\d+)|\bS(\d+)\b|\b(II|III|IV|V)$/i.exec(t);
+    if (m) return m[4] ? { II: 2, III: 3, IV: 4, V: 5 }[m[4].toUpperCase()] : +(m[1] || m[2] || m[3]);
+  }
+  return null;
+};
+const partOffset = async (d) => {
+  const season = seasonOf(d);
+  if (!season) return 0;
+  let total = 0;
+  let cur = d;
+  for (let i = 0; i < 4; i++) {
+    const pre = cur.relations.find((r) => r.relation === "PREQUEL" && ["TV", "TV_SHORT"].includes(r.format));
+    if (!pre) break;
+    cur = await animeDetail(pre.id);
+    if (seasonOf(cur) !== season) break;
+    total += cur.episodes || 0;
+  }
+  return total;
+};
+
 // ---------- release-name parsing ----------
 const parseRelease = (name) => {
   const n = name.replace(/_/g, " ");
@@ -536,13 +565,10 @@ const animeSources = async (id, episode) => {
   const isMovie = d.format === "MOVIE" || (d.episodes === 1 && d.format !== "TV");
   const variants = titleVariants(d);
   const offset = isMovie ? 0 : await prequelOffset(id).catch(() => 0);
-  const seasonNum = (() => {
-    for (const t of d.titles) {
-      const m = /(\d+)(?:st|nd|rd|th) Season|Season (\d+)|\bS(\d+)\b|\b(II|III|IV|V)$/i.exec(t);
-      if (m) return m[4] ? { II: 2, III: 3, IV: 4, V: 5 }[m[4].toUpperCase()] : +(m[1] || m[2] || m[3]);
-    }
-    return offset ? 2 : 1;
-  })();
+  const seasonNum = seasonOf(d) || (offset ? 2 : 1);
+  const myPart = partNum(d.titles.join(" ")) || 1;
+  const inSeason = isMovie ? 0 : await partOffset(d).catch(() => 0); // episodes in earlier parts of this season
+  const seasonEp = ep + inSeason;
   const queries = [];
   variants.slice(0, 3).forEach((v) => {
     if (isMovie) queries.push(v);
@@ -552,6 +578,11 @@ const animeSources = async (id, episode) => {
     }
   });
   if (!isMovie) variants.slice(0, 2).forEach((v) => queries.push(`${v} batch`));
+  // "Attack on Titan S03E13": season-numbered releases (most dubs) count Part 2 on from Part 1
+  if (!isMovie && seasonNum > 1) {
+    const bases = [...new Set(d.titles.filter((t) => /^[\x20-\x7e]+$/.test(t)).map((t) => t.replace(/\s*(?:\d+(?:st|nd|rd|th) season|season \d+|part \d+|final season).*$/i, "").trim()))].filter((t) => t.length >= 5);
+    bases.slice(0, 2).forEach((b) => queries.push(`${b} S${String(seasonNum).padStart(2, "0")}E${String(seasonEp).padStart(2, "0")}`));
+  }
   // releases with an English dub alongside the Japanese track
   variants.slice(0, 2).forEach((v) => queries.push(`${v} dual audio`));
   const results = (await Promise.all(queries.map((q) => nyaaSearch(q).catch(() => [])))).flat();
@@ -572,15 +603,20 @@ const animeSources = async (id, episode) => {
     const arc = /(?:[a-z0-9]+ ){1,3}(?:hen|arc)\b/.exec(nn);
     if (arc && !allTitles.includes(arc[0])) return;
     const ownArc = !!arc; // names this entry's own arc, which identifies the season by itself
+    // "Part 2" releases belong to the Part 2 entry only
+    const relPart = partNum(r.name);
+    if (relPart && relPart !== myPart && !(r.range && r.range[1] - r.range[0] > 30)) return;
+    // a later part's episodes, numbered within the whole season (S03E13 = Part 2 episode 1)
+    const want = inSeason && !relPart && r.season === seasonNum ? seasonEp : ep;
     // sequels: a release without a season marker is season 1 unless it uses absolute numbering
     const absolute =
-      offset && (!r.season || r.season === seasonNum) && (!r.season || r.season === seasonNum) && ((r.episode !== null && r.episode === ep + offset) || (r.range && r.range[0] <= ep + offset && ep + offset <= r.range[1]));
+      offset && (!r.season || r.season === seasonNum) && ((r.episode !== null && r.episode === ep + offset) || (r.range && r.range[0] <= ep + offset && ep + offset <= r.range[1]));
     if (seasonNum > 1 && r.season !== seasonNum && !absolute && !ownArc) return;
     if (seasonNum <= 1 && r.season && r.season > 1) return;
     let match = false;
     if (isMovie) match = !r.episode || r.episode === 1;
-    else if (r.range) match = (r.range[0] <= ep && ep <= r.range[1]) || (offset && r.range[0] <= ep + offset && ep + offset <= r.range[1]);
-    else if (r.episode !== null) match = r.episode === ep || (offset && r.episode === ep + offset);
+    else if (r.range) match = (r.range[0] <= want && want <= r.range[1]) || (offset && r.range[0] <= ep + offset && ep + offset <= r.range[1]);
+    else if (r.episode !== null) match = r.episode === want || (offset && r.episode === ep + offset);
     else if (r.batch) match = true;
     if (!match) return;
     seen.add(r.hash);
@@ -597,7 +633,7 @@ const animeSources = async (id, episode) => {
       dub: r.dub,
       trusted: r.trusted,
       // the file to pick inside a batch torrent (absolute numbering if that's what the group uses)
-      fileEpisode: r.episode === ep + offset && offset ? ep + offset : ep,
+      fileEpisode: r.episode === ep + offset && offset ? ep + offset : want,
     });
   });
   return rankSources(sources);
