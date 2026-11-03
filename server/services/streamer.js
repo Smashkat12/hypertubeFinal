@@ -554,11 +554,12 @@ const engineStats = (rawHash) => {
 // downloads too (next-episode prefetch). Candidates are tried in order; the first whose metadata
 // arrives and contains the episode wins. Remembered under q.key so the player recalls it.
 const preparing = {};
-const prepare = (hashes, q, { full = false } = {}) => {
-  const id = `${q.key || hashes.join(",")}:${full}`;
+const prepare = (hashes, q, { full = false, fresh = false } = {}) => {
+  const id = `${q.key || hashes.join(",")}:${full}:${fresh}`;
   if (preparing[id]) return preparing[id];
   const run = (async () => {
-    const known = recalledPick(q);
+    // fresh: replace whatever played this episode before (e.g. a Japanese-only copy)
+    const known = !fresh && recalledPick(q);
     if (known) return known;
     // per-candidate file numbering (packs/absolute-numbered releases), aligned with hashes
     const fe = String(q.fileEpisodes || "").split(",");

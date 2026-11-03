@@ -238,6 +238,21 @@ exports.router = (() => {
         : streamer.removeTorrent({ hash: req.query.hash, name: req.query.name && String(req.query.name) }),
     })
   );
+  // download a run of episodes in full, for scripts/fetch-episodes.js on this machine. Signed
+  // with the stream token secret (no session needed): sig = hmac(kind:id:season:from:to:exp)
+  router.post("/fetch", (req, res) => {
+    const { kind, id, season = "", from, to, exp, sig } = req.query;
+    const want = crypto.createHmac("sha256", SECRET).update(`fetch:${kind}:${id}:${season}:${from}:${to}:${exp}`).digest("hex");
+    const okSig = typeof sig === "string" && sig.length === want.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want));
+    if (!okSig || !(+exp > Date.now()) || !["series", "anime"].includes(kind) || !/^\d+$/.test(id) || !(+from >= 1 && +to >= +from && +to - +from < 100))
+      return res.sendStatus(401);
+    require("../services/autoDownload")
+      .fetchRange(kind, id, +season || null, +from, +to)
+      .then((n) => console.log(`Fetch: ${kind}:${id} done, ${n} episodes`))
+      .catch((e) => console.log("Fetch failed:", e.message));
+    res.json({ success: true });
+  });
+
   // check followed shows for new episodes now (it also runs every few hours by itself)
   router.post("/downloads/check", requireAuth, async (req, res) => {
     const started = await require("../services/autoDownload").run();

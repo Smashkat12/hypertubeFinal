@@ -62,8 +62,36 @@ const wantedEpisodes = async (kind, id, at) => {
   return picks.map((n) => ({ season: null, episode: n }));
 };
 
-const sourcesFor = async (kind, id, ep) =>
-  kind === "series" ? catalog.seriesSources(id, ep.season, ep.episode) : catalog.animeSources(id, ep.episode);
+// anime: an English dub first (the player plays the English track when there is one)
+const sourcesFor = async (kind, id, ep) => {
+  if (kind === "series") return catalog.seriesSources(id, ep.season, ep.episode);
+  const list = await catalog.animeSources(id, ep.episode);
+  return [...list.filter((s) => s.dub), ...list.filter((s) => !s.dub)];
+};
+const queryFor = (kind, id, ep, sources) => ({
+  key: keyFor(kind, id, ep.season, ep.episode),
+  season: kind === "series" ? ep.season : undefined,
+  episode: ep.episode,
+  fileEpisodes: sources.map((s) => s.fileEpisode || "").join(","),
+  fileSeasons: sources.map((s) => s.fileSeason || "").join(","),
+});
+
+// download a whole run of episodes in full, one after another (replacing earlier picks)
+const fetchRange = async (kind, id, season, from, to) => {
+  let ok = 0;
+  for (let n = from; n <= to; n++) {
+    const ep = { season: kind === "series" ? season : null, episode: n };
+    const sources = (await sourcesFor(kind, id, ep).catch(() => [])).slice(0, 3);
+    if (!sources.length) {
+      console.log(`Fetch: ${kind}:${id} E${n} no sources`);
+      continue;
+    }
+    const got = await streamer.prepare(sources.map((s) => s.hash), queryFor(kind, id, ep, sources), { full: true, fresh: true }).catch(() => null);
+    if (got) ok++;
+    console.log(`Fetch: ${kind}:${id} E${n} -> ${got ? got.hash.slice(0, 8) + " file " + got.index : "failed"}`);
+  }
+  return ok;
+};
 
 let running = false;
 const run = async () => {
@@ -86,14 +114,7 @@ const run = async () => {
         if (streamer.recalledPick({ key })) continue; // already on disk or downloading
         const sources = (await sourcesFor(kind, id, ep).catch(() => [])).slice(0, 3);
         if (!sources.length) continue;
-        const q = {
-          key,
-          season: kind === "series" ? ep.season : undefined,
-          episode: ep.episode,
-          fileEpisodes: sources.map((s) => s.fileEpisode || "").join(","),
-          fileSeasons: sources.map((s) => s.fileSeason || "").join(","),
-        };
-        const got = await streamer.prepare(sources.map((s) => s.hash), q, { full: true }).catch(() => null);
+        const got = await streamer.prepare(sources.map((s) => s.hash), queryFor(kind, id, ep, sources), { full: true }).catch(() => null);
         if (got) {
           started++;
           forShow++;
@@ -114,4 +135,4 @@ const start = () => {
   setInterval(run, EVERY_MS).unref();
 };
 
-module.exports = { start, run, followedTitles, wantedEpisodes };
+module.exports = { start, run, fetchRange, followedTitles, wantedEpisodes };
